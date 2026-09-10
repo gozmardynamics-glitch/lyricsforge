@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { AgentProfile, AgentToolId, LLMModelDefinition, PipelineExecutionResult, WritersRoomMessage } from "../agents/agentTypes";
+import { AgentProfile, AgentToolId, LLMModelDefinition, LLMProvider, ModelConnectionStatus, PipelineExecutionResult, WritersRoomMessage } from "../agents/agentTypes";
 import { AVAILABLE_AGENT_TOOLS, AVAILABLE_SKILLS } from "../agents/defaultAgents";
-import { getStoredLLMModels } from "../agents/llmRegistry";
+import { DEFAULT_LLM_MODELS, getActiveModelId, getProviderApiKeys, getStoredLLMModels, saveLLMModels, saveProviderApiKeys, setActiveModelId, testModelConnection } from "../agents/llmRegistry";
 import { getStoredAgents, PRECONFIGURED_PIPELINES, runOrchestratorPipeline, saveStoredAgents, sendWritersRoomMessage } from "../agents/orchestratorEngine";
 
 interface AgentOrchestratorStudioModalProps {
@@ -71,12 +71,39 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
   const [formTemp, setFormTemp] = useState(0.7);
   const [formTokens, setFormTokens] = useState(2048);
 
+  // Model registry management state
+  const [activeModelId, setActiveModelIdState] = useState("gemini_2_5_flash");
+  const [modelStatus, setModelStatus] = useState<Record<string, ModelConnectionStatus>>({});
+  const [testingModelId, setTestingModelId] = useState<string | null>(null);
+  const [serverModelIds, setServerModelIds] = useState<Set<string>>(new Set());
+  const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
+  const [keysSaved, setKeysSaved] = useState(false);
+  const [showAddModel, setShowAddModel] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newProvider, setNewProvider] = useState<LLMProvider>("openai_compatible");
+  const [newModelString, setNewModelString] = useState("");
+  const [newEndpoint, setNewEndpoint] = useState("");
+  const [newContext, setNewContext] = useState(128000);
+  const [addModelError, setAddModelError] = useState("");
+
   // Load initial data + re-seed pipeline brief from the active song every time
   // the modal opens (the modal stays mounted, so mount-time seeds go stale).
   useEffect(() => {
     if (isOpen) {
       setAgents(getStoredAgents());
       setModels(getStoredLLMModels());
+      setActiveModelIdState(getActiveModelId());
+      setProviderKeys(getProviderApiKeys() as Record<string, string>);
+      setKeysSaved(false);
+      setAddModelError("");
+
+      // Which models the server proxy can actually test with its own env keys
+      fetch("/api/models/list")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("no server list"))))
+        .then((d: any) => {
+          if (Array.isArray(d?.models)) setServerModelIds(new Set(d.models.map((m: LLMModelDefinition) => m.id)));
+        })
+        .catch(() => setServerModelIds(new Set()));
 
       if (activeSongContext) {
         if (activeSongContext.title) setPipelineTitle(activeSongContext.title);
@@ -272,6 +299,92 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
     } finally {
       setIsAgentReplying(false);
     }
+  };
+
+  const makeCustomModelDefinition = (): LLMModelDefinition => ({
+    id: `custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    name: newName.trim(),
+    provider: newProvider,
+    modelString: newModelString.trim(),
+    endpointUrl: newEndpoint.trim().replace(/\/+$/, "") || undefined,
+    contextWindow: newContext,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "low",
+    speedTier: "fast",
+    description: `Custom ${newProvider} endpoint added from the registry.`
+  });
+
+  const handleAddCustomModel = () => {
+    if (!newName.trim() || !newModelString.trim()) {
+      setAddModelError("Model name and model string are required.");
+      return;
+    }
+    if ((newProvider === "openai_compatible" || newProvider === "anthropic_compatible") && !/^https?:\/\//i.test(newEndpoint.trim())) {
+      setAddModelError("Compatible providers need an absolute endpointUrl (http/https).");
+      return;
+    }
+    const customModel = makeCustomModelDefinition();
+    const customs = getStoredLLMModels().filter((m) => !DEFAULT_LLM_MODELS.some((d) => d.id === m.id));
+    saveLLMModels([...customs, customModel]);
+    setModels(getStoredLLMModels());
+    setShowAddModel(false);
+    setNewName("");
+    setNewModelString("");
+    setNewEndpoint("");
+    setContextFallback();
+    setAddModelError("");
+  };
+
+  const setContextFallback = () => setNewContext(128000);
+
+  const handleTestModel = async (modelId: string) => {
+    setTestingModelId(modelId);
+    try {
+      let status: ModelConnectionStatus;
+      if (serverModelIds.has(modelId)) {
+        const res = await fetch("/api/models/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ modelId })
+        });
+        const d = await res.json().catch(() => null);
+        status = {
+          modelId,
+          status: d?.status === "connected" ? "connected" : "error",
+          latencyMs: d?.latencyMs,
+          lastTested: Date.now(),
+          errorMessage: d?.status === "connected" ? undefined : (d?.errorMessage || (res.status === 401 ? "Server requires API_ACCESS_TOKEN (401)." : "Server connection test failed."))
+        };
+      } else {
+        status = await testModelConnection(modelId);
+      }
+      setModelStatus((prev) => ({ ...prev, [modelId]: status }));
+    } catch (err: any) {
+      setModelStatus((prev) => ({ ...prev, [modelId]: { modelId, status: "error", lastTested: Date.now(), errorMessage: err.message || String(err) } }));
+    } finally {
+      setTestingModelId(null);
+    }
+  };
+
+  const handleSetDefaultModel = (modelId: string) => {
+    setActiveModelId(modelId);
+    setActiveModelIdState(modelId);
+  };
+
+  const handleDeleteCustomModel = (modelId: string) => {
+    if (!confirm("Remove this custom model from the registry?")) return;
+    const customs = getStoredLLMModels().filter(
+      (m) => !DEFAULT_LLM_MODELS.some((d) => d.id === m.id) && m.id !== modelId
+    );
+    saveLLMModels(customs);
+    setModels(getStoredLLMModels());
+  };
+
+  const handleSaveProviderKeys = () => {
+    saveProviderApiKeys(providerKeys as any);
+    setKeysSaved(true);
+    setTimeout(() => setKeysSaved(false), 2500);
   };
 
   const handleSaveCustomAgent = (e: React.FormEvent) => {
@@ -997,6 +1110,46 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
                       />
                     </div>
 
+                    {/* Model & generation parameters */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-400 block mb-1">Preferred LLM Model</label>
+                        <select
+                          value={formModelId}
+                          onChange={(e) => setFormModelId(e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                        >
+                          {models.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-400 block mb-1">Temperature ({formTemp.toFixed(2)})</label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1.5}
+                          step={0.05}
+                          value={formTemp}
+                          onChange={(e) => setFormTemp(parseFloat(e.target.value))}
+                          className="w-full accent-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-400 block mb-1">Max Tokens</label>
+                        <input
+                          type="number"
+                          min={128}
+                          max={8192}
+                          step={128}
+                          value={formTokens}
+                          onChange={(e) => setFormTokens(parseInt(e.target.value, 10) || 2048)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+
                     {/* Tools & Skills selection */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -1076,46 +1229,220 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
           {/* TAB 4: LLM MODEL REGISTRY */}
           {activeTab === "llmModels" && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <span>🧠 LLM Model Registry & Endpoint Config</span>
                   </h4>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Configure Google Gemini, Nous Hermes 3, Ollama local instances, or custom OpenAI-compatible endpoints.
+                    Test endpoints, connect DeepSeek, Claude, OpenAI, Meta Llama (OpenRouter / Groq / Ollama), local desktop models,
+                    or any OpenAI-compatible API — then set the studio default used by generation.
                   </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModel((v) => !v)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow cursor-pointer whitespace-nowrap"
+                >
+                  ➕ Add Custom Model
+                </button>
+              </div>
+
+              <div className="bg-gray-950/80 border border-gray-800 rounded-xl p-3.5 flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-300">Active default model (all agents unless overridden)</span>
+                <span className="text-[11px] bg-teal-500/15 text-teal-300 border border-teal-500/40 px-2.5 py-1 rounded-full font-bold">
+                  {models.find((m) => m.id === activeModelId)?.name || activeModelId}
+                </span>
+              </div>
+
+              {/* Provider API keys (browser-local; server deployments use env vars instead) */}
+              <div className="bg-gray-950/80 border border-gray-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300">Provider API Keys</span>
+                  <span className="text-[10px] text-gray-500">stored in this browser only</span>
+                </div>
+                {(
+                  [
+                    ["google_gemini", "Google Gemini"],
+                    ["anthropic", "Anthropic Claude"],
+                    ["openai", "OpenAI"],
+                    ["deepseek", "DeepSeek"],
+                    ["groq", "Groq"],
+                    ["openrouter", "OpenRouter (also Meta Llama / Hermes routes)"],
+                    ["custom", "Custom OpenAI-compatible"]
+                  ] as [string, string][]
+                ).map(([slot, label]) => (
+                  <div key={slot} className="flex items-center gap-2">
+                    <label className="text-[11px] text-gray-400 w-56 flex-shrink-0">{label}</label>
+                    <input
+                      type="password"
+                      value={providerKeys[slot] || ""}
+                      onChange={(e) => setProviderKeys({ ...providerKeys, [slot]: e.target.value })}
+                      placeholder="paste key (optional)"
+                      className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono"
+                    />
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-gray-500">
+                    When the app runs against its server proxy, keys come from server environment variables — these browser keys are the direct-call fallback.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveProviderKeys}
+                    className="px-4 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg cursor-pointer whitespace-nowrap"
+                  >
+                    {keysSaved ? "✓ Saved" : "Save Keys"}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {models.map((mod) => (
-                  <div key={mod.id} className="bg-gray-950/80 border border-gray-800 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">⚡</span>
-                        <h5 className="text-sm font-bold text-white">{mod.name}</h5>
-                      </div>
-                      <span className="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2 py-0.5 rounded-full font-bold uppercase">
-                        {mod.provider}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-gray-400">{mod.description}</p>
-
-                    <div className="bg-gray-900 p-2.5 rounded-lg border border-gray-800 space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-gray-400">
-                        <span>Model ID:</span>
-                        <span className="font-mono text-teal-300">{mod.modelString}</span>
-                      </div>
-                      {mod.endpointUrl && (
-                        <div className="flex items-center justify-between text-gray-400">
-                          <span>Endpoint URL:</span>
-                          <span className="font-mono text-amber-300 truncate max-w-[200px]">{mod.endpointUrl}</span>
-                        </div>
-                      )}
+              {showAddModel && (
+                <div className="bg-gray-950 border border-indigo-500/40 rounded-xl p-4 space-y-3">
+                  <span className="text-xs font-bold text-indigo-300">New Registry Entry</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="Display name (e.g. My vLLM Llama)"
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                    />
+                    <select
+                      value={newProvider}
+                      onChange={(e) => setNewProvider(e.target.value as LLMProvider)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                    >
+                      <option value="google_gemini">Google Gemini</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="anthropic_compatible">Anthropic-compatible endpoint</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="openai_compatible">OpenAI-compatible endpoint</option>
+                      <option value="deepseek">DeepSeek</option>
+                      <option value="groq">Groq</option>
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="nous_hermes">Nous Hermes</option>
+                      <option value="ollama_local">Ollama (local desktop)</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={newModelString}
+                      onChange={(e) => setNewModelString(e.target.value)}
+                      placeholder="model string (e.g. llama-4-maverick / qwen2.5-coder:14b)"
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                    />
+                    <input
+                      type="text"
+                      value={newEndpoint}
+                      onChange={(e) => setNewEndpoint(e.target.value)}
+                      placeholder="endpoint URL (optional for built-in providers, e.g. http://localhost:11434/v1/chat/completions)"
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] text-gray-400">Context tokens</label>
+                      <input
+                        type="number"
+                        min={2048}
+                        max={10485760}
+                        step={1024}
+                        value={newContext}
+                        onChange={(e) => setNewContext(parseInt(e.target.value, 10) || 128000)}
+                        className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white flex-1"
+                      />
                     </div>
                   </div>
-                ))}
+                  {addModelError && <p className="text-[11px] text-red-400">{addModelError}</p>}
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setShowAddModel(false)} className="px-4 py-1.5 bg-gray-800 text-gray-300 text-xs font-bold rounded-lg cursor-pointer">
+                      Cancel
+                    </button>
+                    <button type="button" onClick={handleAddCustomModel} className="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg cursor-pointer">
+                      Add to Registry
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {models.map((mod) => {
+                  const st = modelStatus[mod.id];
+                  const isCustom = !DEFAULT_LLM_MODELS.some((d) => d.id === mod.id);
+                  const isActive = activeModelId === mod.id;
+                  return (
+                    <div key={mod.id} className="bg-gray-950/80 border border-gray-800 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              st?.status === "connected" ? "bg-emerald-400" : st?.status === "error" ? "bg-red-500" : "bg-gray-600"
+                            }`}
+                            title={st?.status === "connected" ? `Connected · ${st.latencyMs}ms` : st?.errorMessage || "Not tested"}
+                          />
+                          <h5 className="text-sm font-bold text-white">{mod.name}</h5>
+                          {isCustom && (
+                            <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.5 rounded font-bold">CUSTOM</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2 py-0.5 rounded-full font-bold uppercase">
+                          {mod.provider}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-400">{mod.description}</p>
+
+                      <div className="bg-gray-900 p-2.5 rounded-lg border border-gray-800 space-y-1 text-xs">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span>Model ID:</span>
+                          <span className="font-mono text-teal-300">{mod.modelString}</span>
+                        </div>
+                        {mod.endpointUrl && (
+                          <div className="flex items-center justify-between text-gray-400">
+                            <span>Endpoint:</span>
+                            <span className="font-mono text-amber-300 truncate max-w-[210px]">{mod.endpointUrl}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {st?.status === "connected" && (
+                        <p className="text-[11px] text-emerald-400 font-bold">✓ Connection verified · {st.latencyMs}ms</p>
+                      )}
+                      {st?.status === "error" && st.errorMessage && (
+                        <p className="text-[11px] text-red-400 break-words">✗ {st.errorMessage}</p>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleTestModel(mod.id)}
+                          disabled={testingModelId === mod.id}
+                          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 text-teal-300 border border-gray-700 text-[11px] font-bold rounded-lg cursor-pointer"
+                        >
+                          {testingModelId === mod.id ? "⏳ Testing…" : "⚡ Test"}
+                        </button>
+                        {isActive ? (
+                          <span className="px-3 py-1.5 bg-teal-600/30 text-teal-200 border border-teal-500/50 text-[11px] font-bold rounded-lg">★ Default</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultModel(mod.id)}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+                          >
+                            Set as Default
+                          </button>
+                        )}
+                        {isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomModel(mod.id)}
+                            className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-[11px] font-bold rounded-lg cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

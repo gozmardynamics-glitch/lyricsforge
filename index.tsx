@@ -638,6 +638,18 @@ const App = () => {
       alert(`Saved snapshot of "${activeTitle}" to Version History!`);
     }, [album, handleSaveVersionSnapshot]);
 
+    // Keyboard shortcut: Ctrl/Cmd + S captures a Version History snapshot
+    useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 's') {
+          e.preventDefault();
+          handleTakeManualSnapshot();
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }, [handleTakeManualSnapshot]);
+
     const handleRevertVersion = useCallback((lyricsText: string, title?: string) => {
       if (album && album.songs && album.songs.length > 0) {
         const targetSongId = album.songs[0].id;

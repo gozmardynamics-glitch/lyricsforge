@@ -1,6 +1,34 @@
 # MusicForge — Pending Work (handoff for next session)
 
-Updated: 2026-09-07 · Companion to `report.md` (full audit) and `PLAN.md` (roadmap).
+Updated: 2026-09-10 · Companion to `report.md` (full audit) and `PLAN.md` (roadmap).
+
+## Fix Pass 4 — DONE 2026-09-10 (multi-provider registry, per-agent models, password gate)
+
+1. **LLM registry expanded** (`llmRegistry.ts`): Claude Sonnet 4 + Opus 4.1, OpenAI GPT-5, Meta
+   Llama 4 Maverick/Scout (OpenRouter + Groq), and 3 local Ollama models (llama3.3 70B,
+   deepseek-r1:8b, qwen2.5-coder:14b). DeepSeek and OpenRouter were already wired; "OmniRouter"
+   = OpenRouter ✓. Any Meta/API endpoint also connectable via the registry's Add-Custom form.
+2. **Registry tab is now real management** (`AgentOrchestratorStudioModal`): set active default
+   model, per-model ⚡ Test (server-side when the deployment's env has the keys, direct browser
+   test otherwise), provider API-key manager (browser-local), Add Custom Model
+   (any OpenAI/Anthropic-compatible endpoint, custom context window), delete custom entries
+   (localStorage-backed like the agent roster).
+3. **Per-agent model selection**: agent builder/edit form now has a Preferred-LLM select
+   (+ temperature slider + max-tokens input) — previously `preferredModelId`/temp/tokens were
+   saved but had NO controls. The pipeline/writer's room dispatch each uses the agent's model.
+4. **Password protection wired** (`src/server/authGate.ts` + `index.ts` integration):
+   set env **APP_PASSWORD** → HttpOnly session cookie ("lyricsforge_session", 7-day default via
+   APP_SESSION_DAYS), styled login page at `/login`, JSON login/me/logout under /api/auth/*,
+   per-IP rate limit, constant-time compare, Secure-cookie when behind https proxy.
+   `/api/health` + `/api/openapi.json` stay public for container healthchecks. Unset env = open
+   (dev). Deployed instance: APP_PASSWORD set on Coolify for lyrics.gozmar.com.
+5. **Productivity**: global **Ctrl/Cmd+S → version snapshot**, header model selector now lists
+   the full expanded registry, `.env.example` documents APP_PASSWORD/APP_SESSION_DAYS/
+   APP_COOKIE_SECURE, OpenAPI gained /auth paths + cookie security scheme + provider list.
+
+Verification: `tsc --noEmit` 0 errors · vite + esbuild builds OK · local smoke test on :3099:
+302 gate → /login 200 → wrong pw 401 → login 302+cookie → authed / 200 → /api/auth/me
+{authEnabled:true, authenticated:false} public · health endpoint stayed public ✓
 
 > ⚠ **FIRST: commit Fix Pass 2 + Fix Pass 3.** The working tree has uncommitted
 > changes (PLAN.md, index.html, index.tsx, package.json, pnpm-lock.yaml,

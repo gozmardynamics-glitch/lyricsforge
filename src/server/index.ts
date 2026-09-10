@@ -2,6 +2,7 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { handleApiRequest } from "./apiRouter";
+import { createAuthMiddleware } from "./authGate";
 
 // Port 3005 avoids the Agent OS / BookForge family (Next.js :3000, BookForge
 // :3001) so neither the dev server nor this standalone server collides with
@@ -75,7 +76,21 @@ async function serveStatic(req: http.IncomingMessage, res: http.ServerResponse):
   }
 }
 
+const auth = createAuthMiddleware();
+
 const server = http.createServer((req, res) => {
+  void routed(req, res);
+});
+
+async function routed(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  try {
+    if (await auth.handle(req, res)) return;
+  } catch (err: any) {
+    console.error("[Auth] middleware error:", err?.message || err);
+    res.statusCode = 500;
+    res.end();
+    return;
+  }
   if (req.url?.startsWith("/api")) {
     handleApiRequest(req, res, () => {
       sendJson(res, 404, { error: "Not Found", path: req.url });
@@ -83,7 +98,7 @@ const server = http.createServer((req, res) => {
   } else {
     serveStatic(req, res);
   }
-});
+}
 
 // Timeout guards: never let a stalled request hold a socket forever.
 server.requestTimeout = 60_000; // receiving the full request

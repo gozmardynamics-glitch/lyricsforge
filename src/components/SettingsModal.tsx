@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE, LS_APP_SETTINGS, AppSettings } from "../types";
 import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOODS, DEFAULT_STYLE_PRESETS } from "../constants";
 import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMarkdown, countSyllablesInWord, countSyllablesInLine } from "./shared";
@@ -23,6 +23,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   onClearWorkspace
 }) => {
+  const [sessionUser, setSessionUser] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((r) => (r.status === 200 ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: any) => { if (!cancelled) { setSessionUser(d?.authEnabled ? (d.user || "session") : null); } })
+      .catch(() => { if (!cancelled) setSessionUser(null); })
+      .finally(() => { if (!cancelled) setAuthChecked(true); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  const handleSignOut = async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* server absent */ }
+    window.location.href = "/login";
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -136,6 +155,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <option value={10}>Normal (Every 10 seconds)</option>
             <option value={30}>Periodic (Every 30 seconds)</option>
           </select>
+        </div>
+
+        {/* Session / Password Protection */}
+        <div className="pt-3 border-t border-gray-700/80">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-gray-300 block">Session</span>
+              <span className="text-[10px] text-gray-400">
+                {!authChecked
+                  ? "Checking server session…"
+                  : sessionUser
+                    ? `Signed in as ${sessionUser} (password-protected deployment)`
+                    : "No login required (server auth disabled or running locally)"}
+              </span>
+            </div>
+            {sessionUser && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="px-3 py-1.5 bg-gray-900 hover:bg-gray-700 border border-gray-600 text-gray-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Workspace Reset Danger Zone */}

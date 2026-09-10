@@ -3,7 +3,7 @@
   info: {
     title: "AI Lyrics Generator & Multi-Agent Songwriting Studio API",
     version: "2.0.0",
-    description: "Production-ready Model-Agnostic REST API for AI Songwriting, Multi-Agent Orchestration, Rhyme Analysis, Chord Architecture, and Commercial Virality Auditing. Supports Gemini, Claude 3.7, OpenAI GPT-4o, DeepSeek, Groq, OpenRouter, and Ollama.",
+    description: "Production-ready Model-Agnostic REST API for AI Songwriting, Multi-Agent Orchestration, Rhyme Analysis, Chord Architecture, and Commercial Virality Auditing. Supports Google Gemini, Anthropic Claude (3.5/3.7/Sonnet 4/Opus 4.1), OpenAI (GPT-5/4o), DeepSeek, Groq, Meta Llama 4 (OpenRouter/Groq/Ollama), Nous Hermes, local Ollama models, and custom OpenAI-compatible endpoints.",
     contact: {
       name: "AI Lyrics Generator Studio",
       url: "https://ai-lyrics-generator.studio"
@@ -22,14 +22,68 @@
         type: "http",
         scheme: "bearer",
         description: "Required on all mutating (POST) endpoints when the server runs with API_ACCESS_TOKEN set. Send as `Authorization: Bearer <token>` (or `x-api-key: <token>`). When API_ACCESS_TOKEN is unset the API is open (local development)."
+      },
+      SessionCookie: {
+        type: "apiKey",
+        in: "cookie",
+        name: "lyricsforge_session",
+        description: "When APP_PASSWORD is set, the standalone server requires a session cookie obtained via POST /api/auth/login (or the /login page). /api/health and /api/openapi.json remain public for monitoring."
       }
     }
   },
   tags: [
     { name: "system", description: "Health, models, and documentation" },
+    { name: "auth", description: "Session login for APP_PASSWORD deployments" },
     { name: "generation", description: "Lyrics, pipelines, writer's room, tools, artwork" }
   ],
   paths: {
+    "/auth/me": {
+      get: {
+        tags: ["auth"],
+        summary: "Current Session Status",
+        description: "Returns whether server auth is enabled and whether this request carries a valid session. Public endpoint.",
+        responses: {
+          "200": {
+            description: "Session state",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    authEnabled: { type: "boolean" },
+                    authenticated: { type: "boolean" },
+                    user: { type: "string", nullable: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      post: {
+        tags: ["auth"],
+        summary: "Password Login (JSON)",
+        description: "Exchanges { password } for an HttpOnly session cookie when APP_PASSWORD protection is active. Rate-limited per IP.",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { password: { type: "string" } }, required: ["password"] } } }
+        },
+        responses: {
+          "200": { description: "Session issued (Set-Cookie lyricsforge_session)" },
+          "401": { description: "Invalid password" },
+          "429": { description: "Too many attempts" }
+        }
+      }
+    },
+    "/auth/logout": {
+      post: {
+        tags: ["auth"],
+        summary: "End Current Session",
+        responses: { "204": { description: "Session revoked" } }
+      }
+    },
     "/health": {
       get: {
         summary: "API Health & Uptime Check",

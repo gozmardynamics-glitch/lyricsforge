@@ -48,6 +48,34 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
 
   // --- ANTHROPIC CLAUDE & CLAUDE CODE ---
   {
+    id: "claude_sonnet_4",
+    name: "Claude Sonnet 4",
+    provider: "anthropic",
+    modelString: "claude-sonnet-4",
+    endpointUrl: "https://api.anthropic.com/v1/messages",
+    contextWindow: 200000,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "medium",
+    speedTier: "fast",
+    recommendedUse: "Best-in-class poetic lyricism, sustained multi-section album narratives, nuanced voice matching.",
+    description: "Anthropic's balanced flagship: deep creative writing with extended reasoning."
+  },
+  {
+    id: "claude_opus_4_1",
+    name: "Claude Opus 4.1",
+    provider: "anthropic",
+    modelString: "claude-opus-4-1",
+    endpointUrl: "https://api.anthropic.com/v1/messages",
+    contextWindow: 200000,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "high",
+    speedTier: "moderate",
+    recommendedUse: "A&R-level final edits, full-album arc critique, prosody and scansion audits.",
+    description: "Anthropic's most capable model for complex long-form creative analysis."
+  },
+  {
     id: "claude_3_7_sonnet",
     name: "Claude 3.7 Sonnet (Hybrid Reasoning)",
     provider: "anthropic",
@@ -91,6 +119,20 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
   },
 
   // --- OPENAI ---
+  {
+    id: "openai_gpt_5",
+    name: "OpenAI GPT-5",
+    provider: "openai",
+    modelString: "gpt-5",
+    endpointUrl: "https://api.openai.com/v1/chat/completions",
+    contextWindow: 256000,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "high",
+    speedTier: "fast",
+    recommendedUse: "Frontier-grade hook engineering, genre fusion synthesis, structured JSON songpacks.",
+    description: "OpenAI's fifth-generation flagship with hybrid reasoning and 256K context."
+  },
   {
     id: "openai_gpt_4o",
     name: "OpenAI GPT-4o",
@@ -166,6 +208,20 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
 
   // --- GROQ ---
   {
+    id: "groq_llama_4_scout_17b",
+    name: "Groq (Meta Llama 4 Scout 17B)",
+    provider: "groq",
+    modelString: "meta-llama/llama-4-scout-17b-16e-instruct",
+    endpointUrl: "https://api.groq.com/openai/v1/chat/completions",
+    contextWindow: 131072,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "free",
+    speedTier: "ultra_fast",
+    recommendedUse: "Realtime Meta Llama 4 rhymes/ideation at GPU-cluster speed.",
+    description: "Meta Llama 4 Scout served on Groq LPU inference — near-instant responses."
+  },
+  {
     id: "groq_llama_3_3_70b",
     name: "Groq (Llama 3.3 70B)",
     provider: "groq",
@@ -182,6 +238,34 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
 
   // --- OPENROUTER / NOUS HERMES ---
   {
+    id: "openrouter_llama_4_maverick",
+    name: "Meta Llama 4 Maverick 17B (OpenRouter)",
+    provider: "openrouter",
+    modelString: "meta-llama/llama-4-maverick",
+    endpointUrl: "https://openrouter.ai/api/v1/chat/completions",
+    contextWindow: 1048576,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "low",
+    speedTier: "fast",
+    recommendedUse: "Meta's multimodal MoE - expressive pop/rap lyricism with 1M-token memory.",
+    description: "Meta Llama 4 Maverick (17B active params, 128 experts) routed via OpenRouter."
+  },
+  {
+    id: "openrouter_llama_4_scout",
+    name: "Meta Llama 4 Scout 17B (OpenRouter)",
+    provider: "openrouter",
+    modelString: "meta-llama/llama-4-scout",
+    endpointUrl: "https://openrouter.ai/api/v1/chat/completions",
+    contextWindow: 10485760,
+    supportsTools: false,
+    isDefault: false,
+    pricingTier: "free",
+    speedTier: "ultra_fast",
+    recommendedUse: "Cheapest long-context drafts: whole-album lyric continuity in one pass.",
+    description: "Meta Llama 4 Scout with 10M-token context window, routed via OpenRouter."
+  },
+  {
     id: "nous_hermes_3_openrouter",
     name: "Nous Hermes 3 (OpenRouter)",
     provider: "openrouter",
@@ -197,6 +281,48 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
   },
 
   // --- OLLAMA LOCAL ---
+  {
+    id: "ollama_local_llama3_3",
+    name: "Ollama Local - Meta Llama 3.3 70B",
+    provider: "ollama_local",
+    modelString: "llama3.3:latest",
+    endpointUrl: "http://localhost:11434/v1/chat/completions",
+    contextWindow: 128256,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "free",
+    speedTier: "moderate",
+    recommendedUse: "Full-power offline Llama generation for private, zero-cost sessions.",
+    description: "Meta Llama 3.3 70B run locally through your desktop Ollama daemon."
+  },
+  {
+    id: "ollama_local_deepseek_r1",
+    name: "Ollama Local - DeepSeek R1 (8B)",
+    provider: "ollama_local",
+    modelString: "deepseek-r1:8b",
+    endpointUrl: "http://localhost:11434/v1/chat/completions",
+    contextWindow: 32768,
+    supportsTools: false,
+    isDefault: false,
+    pricingTier: "free",
+    speedTier: "reasoning",
+    recommendedUse: "Offline prosody proofs, rhyme-network analysis, structure verification.",
+    description: "DeepSeek-R1 distilled reasoner running entirely on your machine."
+  },
+  {
+    id: "ollama_local_qwen_coder",
+    name: "Ollama Local - Qwen 2.5 Coder 14B",
+    provider: "ollama_local",
+    modelString: "qwen2.5-coder:14b",
+    endpointUrl: "http://localhost:11434/v1/chat/completions",
+    contextWindow: 32768,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "free",
+    speedTier: "fast",
+    recommendedUse: "Precise JSON song schemas, plugin configs, MIDI tooling locally.",
+    description: "Strong structured-output coder model kept local via Ollama."
+  },
   {
     id: "ollama_local_hermes",
     name: "Ollama Local (Local Host)",
