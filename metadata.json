@@ -1,0 +1,10 @@
+{
+  "name": "AI Lyrics Generator",
+  "description": "An advanced AI-powered application to co-create custom song lyrics and albums.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API",
+    "MAJOR_CAPABILITY_SERVER_SIDE_LLM_PROXY",
+    "MAJOR_CAPABILITY_MULTI_AGENT_ORCHESTRATION"
+  ]
+}
