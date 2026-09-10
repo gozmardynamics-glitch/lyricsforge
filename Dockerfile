@@ -2,7 +2,7 @@
 # Build: pnpm install + build UI (vite) + build API server (esbuild)
 # Run:   node dist-server/index.cjs (serves dist/ UI + /api on $PORT, default 3005)
 
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
@@ -21,7 +21,7 @@ COPY . .
 RUN pnpm build && pnpm build:server
 
 # --- Runtime ---
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3005
