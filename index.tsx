@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import './src/index.css';
 import { Type } from "@google/genai";
 import * as d3 from 'd3';
 import { jsPDF } from 'jspdf';
 import { AgentOrchestratorStudioModal } from './src/components/AgentOrchestratorStudioModal';
+import { safeExtractJSON } from './src/agents/llmRegistry';
 import {
   Tooltip,
   TooltipInfo,
@@ -52,6 +53,7 @@ const MelodyGuidanceModal = React.lazy(() => import('./src/components/MelodyGuid
 const ThemeLyricsGenerator = React.lazy(() => import('./src/components/ThemeLyricsGenerator'));
 const ProductionLibraryView = React.lazy(() => import('./src/components/ProductionLibraryView'));
 const StyleTemplatesLibraryView = React.lazy(() => import('./src/components/StyleTemplatesLibraryView'));
+const AgentManagementView = React.lazy(() => import('./src/components/AgentManagementView'));
 const SettingsModal = React.lazy(() => import('./src/components/SettingsModal'));
 const AlbumSongsLibraryView = React.lazy(() => import('./src/components/AlbumSongsLibraryView'));
 const AutonomousViralityAgentStudio = React.lazy(() => import('./src/components/AutonomousViralityAgentStudio'));
@@ -480,7 +482,7 @@ import { exportAlbumToFile, exportSongsToFile } from './src/components/exportUti
 // AutonomousViralityAgentStudio moved to src/components/AutonomousViralityAgentStudio.tsx (code-split).
 // LyricsCompanionAgent moved to src/components/LyricsCompanionAgent.tsx (code-split).
 const App = () => {
-    const [activeTab, setActiveTab] = useState<'theme' | 'agent' | 'album' | 'albumSongs' | 'library' | 'templates'>('theme');
+    const [activeTab, setActiveTab] = useState<'theme' | 'agent' | 'album' | 'albumSongs' | 'library' | 'templates' | 'agents'>('theme');
     const [selectedGlobalModelId, setSelectedGlobalModelId] = useState<string>(() => getActiveModelId());
     const [isApiModalOpen, setIsApiModalOpen] = useState(false);
     const [currentStep, setCurrentStep] = useState(1);
@@ -867,72 +869,97 @@ const App = () => {
     
     const handleAlbumCreation = async (formData: Omit<Album, 'id' | 'songs'>) => {
         setIsLoading(true);
-        setLoadingMessage("Reviewing album concept & creating viral rhyming song titles...");
-        
-        const prompt = `You are a legendary creative record producer.
-Review this album concept and generate genres, viral rhyming song titles, and short ideas for each track.
+        setLoadingMessage("Reviewing album concept & automating viral song titles + track fields...");
+
+        const modelId = getActiveModelId();
+        const prompt = `You are a legendary creative record producer and album A&R.
+Review this album concept and generate a complete, review-ready tracklist package.
 
 Album Title: "${formData.name}"
 Album Occasion / Theme: ${formData.occasion}
 Album Description / Comments: "${formData.comments}"
 Number of Songs Requested: ${formData.songCount}
+User-selected genres (if any): ${formData.genres.join(', ') || '(none — you choose)'}
 
-Instructions:
-1. Review the album title and description/comments carefully.
-2. Create ${formData.songCount} viral, catchy song titles that cleverly rhyme or play on words with the album title and overall theme.
-3. Suggest relevant genres from this list: ${GENRES.join(', ')}.
-4. Assign a default rhyme scheme for each song (e.g. AABB (Couplets), ABAB (Alternate Rhyme), ABCB (Ballad Stanza)).
-5. For each song, provide a short one-sentence idea (under 12 words).
-`;
-        
+For EACH of the ${formData.songCount} tracks return:
+1. "title" — viral, catchy, complete song title that rhymes with or plays on the album title/theme
+2. "genre" — one genre from: ${GENRES.join(', ')}
+3. "mood" — atmospheric mood (e.g. Euphoric & Festival, Melancholic & Reflective)
+4. "structure" — song section map (e.g. Verse - Pre-Chorus - Chorus - Verse - Chorus - Bridge - Chorus)
+5. "rhymeScheme" — e.g. AABB (Couplets), ABAB (Alternate Rhyme), ABCB (Ballad Stanza)
+6. "musicKey" — suggested key (e.g. C Major, F# Minor)
+7. "customIdeas" — one-sentence story/hook seed (under 14 words) for lyric generation
+8. "titleRationale" — one short sentence on why this title fits the album narrative
+
+Also return "albumGenres" — 2-4 genres that fit the full album arc.
+Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
+
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-3.6-flash',
+                model: modelId,
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: Type.OBJECT,
                         properties: {
-                            suggestedGenres: {
+                            albumGenres: {
                                 type: Type.ARRAY,
                                 items: { type: Type.STRING }
                             },
-                            songTitles: {
-                                description: "Viral catchy song titles that rhyme or fit the album theme.",
+                            tracks: {
                                 type: Type.ARRAY,
-                                items: { type: Type.STRING }
-                            },
-                            customIdeas: {
-                                description: "A short, evocative one-sentence idea for each song title.",
-                                type: Type.ARRAY,
-                                items: { type: Type.STRING }
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        title: { type: Type.STRING },
+                                        genre: { type: Type.STRING },
+                                        mood: { type: Type.STRING },
+                                        structure: { type: Type.STRING },
+                                        rhymeScheme: { type: Type.STRING },
+                                        musicKey: { type: Type.STRING },
+                                        customIdeas: { type: Type.STRING },
+                                        titleRationale: { type: Type.STRING }
+                                    },
+                                    required: ["title", "genre", "mood", "structure", "rhymeScheme", "musicKey", "customIdeas", "titleRationale"]
+                                }
                             }
-                        }
+                        },
+                        required: ["albumGenres", "tracks"]
                     }
                 }
             });
 
-            const aiResponse = JSON.parse(response.text);
-            const combinedGenres = [...new Set([...formData.genres, ...(aiResponse.suggestedGenres || [])])];
-            
-            const newSongs: Song[] = Array.from({ length: formData.songCount }, (_, i) => ({
-                id: `song-${Date.now()}-${i}`,
-                title: aiResponse.songTitles?.[i] || `Track ${i + 1}`,
-                genre: combinedGenres[i % combinedGenres.length] || GENRES[0],
-                rhymeScheme: "ABAB (Alternate Rhyme)",
-                customIdeas: aiResponse.customIdeas?.[i] || '',
-                mood: 'Melancholic & Reflective',
-                structure: 'Verse - Chorus - Verse - Chorus - Bridge - Chorus',
-                lyrics: [],
-                isApproved: false,
-            }));
-            
+            const aiResponse = safeExtractJSON(response.text, {} as any);
+            const tracks: any[] = Array.isArray(aiResponse.tracks) ? aiResponse.tracks : [];
+            const aiGenres: string[] = Array.isArray(aiResponse.albumGenres) ? aiResponse.albumGenres : [];
+            const combinedGenres = [...new Set([...formData.genres, ...aiGenres])];
+
+            const newSongs: Song[] = Array.from({ length: formData.songCount }, (_, i) => {
+                const t = tracks[i] || {};
+                return {
+                    id: `song-${Date.now()}-${i}`,
+                    title: (t.title && String(t.title).trim()) || `${formData.name} - Track ${i + 1}`,
+                    genre: t.genre || combinedGenres[i % Math.max(combinedGenres.length, 1)] || GENRES[0],
+                    rhymeScheme: t.rhymeScheme || "ABAB (Alternate Rhyme)",
+                    customIdeas: t.customIdeas || '',
+                    mood: t.mood || 'Melancholic & Reflective',
+                    structure: t.structure || 'Verse - Chorus - Verse - Chorus - Bridge - Chorus',
+                    musicKey: t.musicKey || 'C Major',
+                    titleRationale: t.titleRationale || '',
+                    tags: ['ai-title-automation', 'pending-review'],
+                    lyrics: [],
+                    isApproved: false,
+                };
+            });
+
             setAlbum({
                 ...formData,
                 id: `album-${Date.now()}`,
-                genres: combinedGenres,
-                songs: newSongs
+                genres: combinedGenres.length > 0 ? combinedGenres : formData.genres,
+                songs: newSongs,
+                titlesReadyForReview: tracks.length > 0,
+                titlesGeneratedAt: Date.now()
             });
             setCurrentStep(2);
         } catch (error) {
@@ -951,12 +978,148 @@ Instructions:
             setAlbum({
                 ...formData,
                 id: `album-${Date.now()}`,
-                songs: newSongs
+                genres: formData.genres.length > 0 ? formData.genres : [GENRES[0]],
+                songs: newSongs,
+                titlesReadyForReview: false,
+                titlesGeneratedAt: Date.now()
             });
             setCurrentStep(2);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    /**
+     * Automation workflow: generate complete song titles + related fields from
+     * the album theme/context already on the workspace, then stage for review.
+     */
+    const handleAutomateAlbumTitles = async () => {
+        if (!album) return;
+
+        setIsLoading(true);
+        setLoadingMessage(`Automating titles & track fields for "${album.name}"…`);
+
+        const modelId = getActiveModelId();
+        const existingTitles = album.songs.map(s => s.title).filter(Boolean).join('; ');
+        const prompt = `You are an album A&R automation engine.
+Using ONLY this album context, generate a complete review-ready tracklist.
+
+Album Title: "${album.name}"
+Occasion / Theme: ${album.occasion}
+Story / Comments: "${album.comments}"
+Track count: ${album.songs.length}
+Preferred genres: ${album.genres.join(', ') || '(choose fitting genres)'}
+Current titles (may be placeholders — replace with stronger viral titles when useful): ${existingTitles || '(none)'}
+
+For EACH track index 1..${album.songs.length} produce a full package:
+- title (complete, viral, theme-connected)
+- genre
+- mood
+- structure
+- rhymeScheme
+- musicKey
+- customIdeas (lyric seed, ≤14 words)
+- titleRationale (why it belongs on this album)
+
+Return JSON: { "albumGenres": string[], "tracks": [...] } with exactly ${album.songs.length} tracks.`;
+
+        try {
+            const response = await ai.models.generateContent({
+                model: modelId,
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            albumGenres: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            tracks: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        title: { type: Type.STRING },
+                                        genre: { type: Type.STRING },
+                                        mood: { type: Type.STRING },
+                                        structure: { type: Type.STRING },
+                                        rhymeScheme: { type: Type.STRING },
+                                        musicKey: { type: Type.STRING },
+                                        customIdeas: { type: Type.STRING },
+                                        titleRationale: { type: Type.STRING }
+                                    },
+                                    required: ["title", "genre", "mood", "structure", "rhymeScheme", "musicKey", "customIdeas", "titleRationale"]
+                                }
+                            }
+                        },
+                        required: ["albumGenres", "tracks"]
+                    }
+                }
+            });
+
+            const data = safeExtractJSON(response.text, {} as any);
+            const tracks: any[] = Array.isArray(data.tracks) ? data.tracks : [];
+            if (tracks.length === 0) {
+                alert("AI returned no track packages. Check your model connection in Settings, then try again.");
+                return;
+            }
+
+            const aiGenres: string[] = Array.isArray(data.albumGenres) ? data.albumGenres : [];
+            const combinedGenres = album.genres.length
+                ? [...new Set([...album.genres, ...aiGenres])]
+                : (aiGenres.length ? aiGenres : album.genres);
+
+            const updatedSongs: Song[] = album.songs.map((song, i) => {
+                const t = tracks[i] || {};
+                return {
+                    ...song,
+                    title: (t.title && String(t.title).trim()) || song.title,
+                    genre: t.genre || song.genre || combinedGenres[i % Math.max(combinedGenres.length, 1)] || GENRES[0],
+                    mood: t.mood || song.mood,
+                    structure: t.structure || song.structure,
+                    rhymeScheme: t.rhymeScheme || song.rhymeScheme,
+                    musicKey: t.musicKey || song.musicKey || 'C Major',
+                    customIdeas: t.customIdeas || song.customIdeas,
+                    titleRationale: t.titleRationale || song.titleRationale || '',
+                    tags: [...new Set([...(song.tags || []).filter((tg: string) => tg !== 'pending-review'), 'ai-title-automation', 'pending-review'])],
+                    isApproved: false,
+                };
+            });
+
+            handleUpdateAlbum({
+                songs: updatedSongs,
+                genres: combinedGenres.length ? combinedGenres : album.genres,
+                titlesReadyForReview: true,
+                titlesGeneratedAt: Date.now()
+            });
+            setCurrentStep(2);
+            setIsFinalized(false);
+        } catch (error) {
+            console.error("Album title automation error:", error);
+            alert("Title automation failed. Check model API settings and try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /** Mark AI-generated tracklist as reviewed — clear pending flags, keep user edits. */
+    const handleMarkTitlesReviewed = () => {
+        if (!album) return;
+        const songs = album.songs.map(s => ({
+            ...s,
+            tags: (s.tags || []).filter(t => t !== 'pending-review')
+        }));
+        handleUpdateAlbum({ songs, titlesReadyForReview: false });
+        alert(`Tracklist marked reviewed (${songs.length} titles). Generate lyrics or finalize the album next.`);
+    };
+
+    const handleApproveAllTitlePackages = () => {
+        if (!album) return;
+        const songs = album.songs.map(s => ({
+            ...s,
+            isApproved: true,
+            tags: (s.tags || []).filter(t => t !== 'pending-review').concat('title-approved')
+        }));
+        handleUpdateAlbum({ songs, titlesReadyForReview: false });
     };
 
     const handleGenerateViralAlbumTitles = async () => {
@@ -965,6 +1128,7 @@ Instructions:
         setIsLoading(true);
         setLoadingMessage(`Reviewing "${album.name}" to generate viral rhyming song titles...`);
 
+        const modelId = getActiveModelId();
         const prompt = `You are a viral music branding consultant.
 Review this album concept and suggest new viral, catchy song titles for each track that cleverly rhyme or play on words with the album title and theme.
 
@@ -974,11 +1138,12 @@ Album Description / Comments: "${album.comments}"
 Number of Tracks: ${album.songs.length}
 
 Generate ${album.songs.length} viral, rhyming, catchy song titles.
+Adhere strictly to JSON schema: {"viralSongTitles": ["Title 1", "Title 2", ...]}
 `;
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-3.6-flash',
+                model: modelId,
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
@@ -995,16 +1160,33 @@ Generate ${album.songs.length} viral, rhyming, catchy song titles.
                 }
             });
 
-            const result = JSON.parse(response.text);
-            if (result.viralSongTitles && Array.isArray(result.viralSongTitles)) {
+            const result = safeExtractJSON(response.text, { viralSongTitles: [] as string[] });
+            let titles: string[] = Array.isArray(result.viralSongTitles) ? result.viralSongTitles : [];
+
+            // Fallback: parse plain text line by line if JSON extraction was empty
+            if (titles.length === 0 && response.text) {
+                const lines = response.text
+                    .split("\n")
+                    .map((l) => l.replace(/^[\d\.\-\*\s"']+|["'\s]+$/g, "").trim())
+                    .filter((l) => l.length > 2 && !l.startsWith("[PROCEDURAL"));
+                if (lines.length > 0) {
+                    titles = lines;
+                }
+            }
+
+            if (titles.length > 0) {
                 const updatedSongs = album.songs.map((song, i) => ({
                     ...song,
-                    title: result.viralSongTitles[i] || song.title
+                    title: titles[i] || song.title,
+                    tags: [...new Set([...(song.tags || []).filter((tg: string) => tg !== 'pending-review'), 'pending-review'])]
                 }));
-                handleUpdateAlbum({ songs: updatedSongs });
+                handleUpdateAlbum({ songs: updatedSongs, titlesReadyForReview: true, titlesGeneratedAt: Date.now() });
+            } else {
+                alert("AI model returned no valid song titles. Please try again or test your AI provider in Settings.");
             }
         } catch (error) {
             console.error("Error generating viral album titles:", error);
+            alert("Error regenerating song titles. Check model API connections in Settings.");
         } finally {
             setIsLoading(false);
         }
@@ -1018,25 +1200,37 @@ Generate ${album.songs.length} viral, rhyming, catchy song titles.
         setIsLoading(true);
         setLoadingMessage("Generating a viral rhyming title...");
         
-        const prompt = `Generate a viral, catchy song title that cleverly rhymes or plays with the album concept and theme.
-        Album Title: "${album.name}"
-        Album Description: "${album.comments}"
-        Song Genre: ${song.genre}
-        Song Mood: ${song.mood}
-        Song Rhyme Scheme: ${song.rhymeScheme}
-        Song Ideas: ${song.customIdeas}
-        Current Title: "${song.title}"
-        
-        Suggest ONE viral, catchy, rhyming title.
-        `;
+        const prompt = `You are a viral music branding consultant.
+Generate a single, catchy, viral song title that cleverly rhymes or plays on words with the album concept.
+Album Title: "${album.name}"
+Album Description: "${album.comments}"
+Song Genre: ${song.genre}
+Song Mood: ${song.mood}
+Song Rhyme Scheme: ${song.rhymeScheme}
+Song Ideas: ${song.customIdeas}
+Current Title: "${song.title}"
+
+Return ONLY the plain song title text. Do NOT include markdown bolding, quotes, bullets, or intro text.
+`;
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-3.6-flash',
+                model: getActiveModelId(),
                 contents: prompt,
             });
-            handleUpdateSong(songId, { title: response.text.replace(/["']/g, "").trim() });
+            let cleanTitle = response.text || "";
+            if (cleanTitle.includes("\n\n") && cleanTitle.startsWith("[PROCEDURAL")) {
+                const parts = cleanTitle.split("\n\n");
+                cleanTitle = parts[parts.length - 1];
+            }
+            cleanTitle = cleanTitle.replace(/^[\d\.\-\*\s"']+|["'\s]+$/g, "").replace(/\*\*/g, "").trim();
+            if (cleanTitle.length > 0) {
+                handleUpdateSong(songId, { title: cleanTitle });
+            } else {
+                alert("AI returned an empty response. Please try clicking '⚡ Suggest Viral Title' again.");
+            }
         } catch (error) {
             console.error("Error regenerating title:", error);
+            alert("Error generating viral title. Please check model settings in Settings.");
         } finally {
             setIsLoading(false);
         }
@@ -1056,8 +1250,7 @@ Generate ${album.songs.length} viral, rhyming, catchy song titles.
           presetPrompt = `Lyric Style Reference Preset: "${activePreset.name}" - ${activePreset.description}. Cadence: ${activePreset.cadenceAndMeter}. Rhyme Density: ${activePreset.rhymeDensity}.`;
         }
 
-        const prompt = `
-You are an expert lyricist. Write lyrics for a song with the following details.
+        const prompt = `You are an expert hitmaker lyricist. Write lyrics for a song with the following details.
 
 Album Name: "${album.name}"
 Album Occasion/Theme: ${album.occasion} (${album.comments})
@@ -1071,16 +1264,16 @@ Key Ideas/Keywords from user: "${song.customIdeas}"
 ${presetPrompt}
 
 Instructions:
-1. Generate exactly THREE distinct versions of the lyrics for this song.
+1. Generate THREE distinct versions of the lyrics for this song.
 2. Follow the requested ${song.rhymeScheme || 'ABAB'} rhyme scheme for verses and choruses.
 3. Incorporate the requested emotional tone "${song.mood}".
 4. Format section headers in markdown like [Verse 1], [Chorus], [Bridge], [Outro].
-5. Each version should be formatted as an array of line strings.
+5. Adhere strictly to JSON schema: {"lyricVersions": [["Line 1", "Line 2"], ["Version 2 Line 1"], ["Version 3 Line 1"]]}
 `;
     
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-pro',
+                model: 'gemini-3.6-flash',
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
@@ -1088,28 +1281,53 @@ Instructions:
                         type: Type.OBJECT,
                         properties: {
                             lyricVersions: {
-                                description: "An array containing exactly three distinct lyric versions.",
+                                description: "An array containing distinct lyric versions (each version is an array of line strings).",
                                 type: Type.ARRAY,
                                 items: {
-                                    description: "A single version of the song lyrics, where each element is a line.",
                                     type: Type.ARRAY,
                                     items: { type: Type.STRING }
                                 }
                             }
-                        }
+                        },
+                        required: ["lyricVersions"]
                     }
                 }
             });
             
-            const result = JSON.parse(response.text);
-            if (result.lyricVersions && result.lyricVersions.length === 3) {
-                 handleUpdateSong(songId, { lyrics: result.lyricVersions });
+            const result = safeExtractJSON(response.text, {} as any);
+            let versions: string[][] = [];
+
+            if (Array.isArray(result.lyricVersions) && result.lyricVersions.length > 0) {
+                versions = result.lyricVersions.map((v: any) => {
+                    if (Array.isArray(v)) {
+                        return v.map(line => String(line));
+                    }
+                    if (typeof v === "string") {
+                        return v.split("\n");
+                    }
+                    return [];
+                }).filter((v: string[]) => v.length > 0);
+            }
+
+            // Fallback: if JSON parsing/extraction returned no versions array, parse raw text into lines
+            if (versions.length === 0 && response.text) {
+                const textWithoutHeader = response.text.includes("\n\n") && response.text.startsWith("[PROCEDURAL")
+                    ? response.text.substring(response.text.indexOf("\n\n") + 2).trim()
+                    : response.text.trim();
+                const lines = textWithoutHeader.split("\n");
+                if (lines.length > 0) {
+                    versions = [lines];
+                }
+            }
+
+            if (versions.length > 0) {
+                handleUpdateSong(songId, { lyrics: versions });
             } else {
-                throw new Error("AI did not return the expected number of lyric versions.");
+                alert("The AI response did not contain usable lyrics. Please verify your model API settings in Settings.");
             }
         } catch (error) {
             console.error("Error generating lyrics:", error);
-            alert("Sorry, there was an error generating lyrics. Please try again.");
+            alert("Sorry, there was an error generating lyrics. Please try again or test your AI provider in Settings.");
         } finally {
             setIsLoading(false);
         }
@@ -1132,14 +1350,24 @@ Instructions:
         setLoadingMessage(mode === 'suggest' ? "Suggesting song ideas..." : "Enhancing your ideas...");
         
         const prompt = mode === 'suggest' 
-            ? `Suggest some creative ideas, keywords, and concepts for a song titled "${song.title}" in the ${song.genre} genre, for an album about ${album.occasion}. The mood is ${song.mood}.`
+            ? `Suggest creative keywords, imagery hooks, and story concepts for a song titled "${song.title}" in the ${song.genre} genre, for an album about ${album.occasion}. The mood is ${song.mood}.`
             : `Take these user ideas and enhance them, making them more poetic and lyrical for a song: "${song.customIdeas}". The song is titled "${song.title}" in the ${song.genre} genre. The mood is ${song.mood}.`;
 
         try {
-            const response = await ai.models.generateContent({model: 'gemini-3.6-flash', contents: prompt });
-            handleUpdateSong(songId, { customIdeas: response.text });
+            const response = await ai.models.generateContent({ model: getActiveModelId(), contents: prompt });
+            let cleanText = response.text || "";
+            if (cleanText.includes("\n\n") && cleanText.startsWith("[PROCEDURAL")) {
+                cleanText = cleanText.substring(cleanText.indexOf("\n\n") + 2).trim();
+            }
+            cleanText = cleanText.replace(/\*\*/g, "").trim();
+            if (cleanText.length > 0) {
+                handleUpdateSong(songId, { customIdeas: cleanText });
+            } else {
+                alert("AI returned empty text for ideas. Please try again.");
+            }
         } catch (error) {
             console.error(`Error in AI Fill (${mode}):`, error);
+            alert(`Failed to ${mode} ideas. Check your model API settings in Settings.`);
         } finally {
             setIsLoading(false);
         }
@@ -1162,18 +1390,20 @@ Instructions:
                 customIdeas: album?.songs?.[0]?.customIdeas
               }}
               onApplySongUpdate={(update) => {
-                if (album && album.songs && album.songs.length > 0) {
-                  const songId = album.songs[0].id;
-                  handleUpdateSong(songId, {
-                    title: update.title || album.songs[0].title,
-                    // Song.lyrics is string[][] â€” one wrap per version
-                    lyrics: update.lyricsText ? [update.lyricsText.split('\n')] : album.songs[0].lyrics,
-                    genre: update.genre || album.songs[0].genre,
-                    mood: update.mood || album.songs[0].mood,
-                    musicKey: update.key || album.songs[0].musicKey || "C Major",
-                    customIdeas: update.customIdeas || album.songs[0].customIdeas
-                  });
+                if (!album || !album.songs || album.songs.length === 0) {
+                  return false;
                 }
+                const songId = album.songs[0].id;
+                handleUpdateSong(songId, {
+                  title: update.title || album.songs[0].title,
+                  // Song.lyrics is string[][] — one wrap per version
+                  lyrics: update.lyricsText ? [update.lyricsText.split('\n')] : album.songs[0].lyrics,
+                  genre: update.genre || album.songs[0].genre,
+                  mood: update.mood || album.songs[0].mood,
+                  musicKey: update.key || album.songs[0].musicKey || "C Major",
+                  customIdeas: update.customIdeas || album.songs[0].customIdeas
+                });
+                return true;
               }}
             />
 
@@ -1333,7 +1563,18 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>ðŸŽ¨ Style Templates</span>
+                            <span>🎨 Style Templates</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('agents')}
+                            title="Agent Management: View all agents, descriptions, skills and tools — edit or create specialists"
+                            className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                activeTab === 'agents'
+                                    ? "bg-teal-600 text-white shadow-sm"
+                                    : "text-gray-400 hover:text-white"
+                            }`}
+                        >
+                            <span>👥 Agents</span>
                         </button>
                     </div>
 
@@ -1481,19 +1722,24 @@ Instructions:
                       onApplyTemplateToTheme={handleApplyTemplateToTheme}
                       onApplyTemplateToAgent={handleApplyTemplateToAgent}
                     />
+                ) : activeTab === 'agents' ? (
+                    <AgentManagementView onOpenAgentStudio={() => setIsAgentStudioOpen(true)} />
                 ) : (
                     <div>
                         {currentStep === 1 && <AlbumCreationStep onSubmit={handleAlbumCreation} isLoading={isLoading} />}
                         {currentStep === 2 && album && (
                             isFinalized
                                 ? <FinalizedAlbumView album={album} onReEdit={() => setIsFinalized(false)} />
-                                : <SongConfigurationStep 
+                                : <SongConfigurationStep
                                     album={album}
                                     isLoading={isLoading}
                                     stylePresets={stylePresets}
                                     onUpdateSong={handleUpdateSong}
                                     onRegenerateTitle={handleRegenerateTitle}
                                     onGenerateViralAlbumTitles={handleGenerateViralAlbumTitles}
+                                    onAutomateTitles={handleAutomateAlbumTitles}
+                                    onMarkTitlesReviewed={handleMarkTitlesReviewed}
+                                    onApproveAllTitles={handleApproveAllTitlePackages}
                                     onGenerateLyrics={handleGenerateLyrics}
                                     onApproveSong={handleApproveSong}
                                     onSuggestIdeas={(songId) => handleAIFill(songId, 'suggest')}
@@ -1648,7 +1894,7 @@ const AlbumCreationStep = ({ onSubmit, isLoading }: { onSubmit: (data: any) => v
     return (
         <div className="max-w-2xl mx-auto bg-gray-800 p-6 sm:p-8 rounded-2xl border border-gray-700 animate-fade-in shadow-xl">
             <h2 className="text-2xl font-bold mb-2 text-center text-white">Create a New Concept Album</h2>
-            <p className="text-center text-gray-400 text-sm mb-6">Setup your album details and AI will generate viral rhyming song titles.</p>
+            <p className="text-center text-gray-400 text-sm mb-6">Set the album theme — AI will auto-generate complete song titles and related track fields, ready for your review.</p>
             <form onSubmit={handleSubmit} className="space-y-5">
                  <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Album Title (e.g., Midnight Confessions)" required className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm font-semibold"/>
                  <select name="occasion" value={formData.occasion} onChange={handleChange} className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm">
@@ -1687,7 +1933,7 @@ const AlbumCreationStep = ({ onSubmit, isLoading }: { onSubmit: (data: any) => v
                       <span>Creating Album...</span>
                     </>
                   ) : (
-                    <span>Create Album & Generate Viral Rhyming Song Titles</span>
+                    <span>Create Album → Auto Titles + Fields → Review</span>
                   )}
                 </button>
             </form>
@@ -1702,40 +1948,99 @@ interface SongConfigurationStepProps {
     onUpdateSong: (songId: string, updatedData: Partial<Song>) => void;
     onRegenerateTitle: (songId: string) => void;
     onGenerateViralAlbumTitles: () => void;
+    onAutomateTitles?: () => void;
+    onMarkTitlesReviewed?: () => void;
+    onApproveAllTitles?: () => void;
     onGenerateLyrics: (songId: string) => void;
     onApproveSong: (songId: string) => void;
     onSuggestIdeas: (songId: string) => void;
     onEnhanceIdeas: (songId: string) => void;
     onFinalize: () => void;
 }
-const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, onRegenerateTitle, onGenerateViralAlbumTitles, onGenerateLyrics, onApproveSong, onSuggestIdeas, onEnhanceIdeas, onFinalize }: SongConfigurationStepProps) => (
+const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, onRegenerateTitle, onGenerateViralAlbumTitles, onAutomateTitles, onMarkTitlesReviewed, onApproveAllTitles, onGenerateLyrics, onApproveSong, onSuggestIdeas, onEnhanceIdeas, onFinalize }: SongConfigurationStepProps) => (
     <div className="animate-fade-in space-y-6">
         <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-teal-400 bg-teal-950/60 border border-teal-500/30 px-3 py-1 rounded-md">Album Concept</span>
               <h2 className="text-3xl font-black text-white mt-2">{album.name}</h2>
-              <p className="text-gray-400 text-sm mt-1">{album.occasion} â€¢ {album.songs.length} Tracks</p>
+              <p className="text-gray-400 text-sm mt-1">{album.occasion} • {album.songs.length} Tracks</p>
               {album.comments && <p className="text-gray-300 text-xs italic mt-2 max-w-xl">"{album.comments}"</p>}
             </div>
 
-            <button
-              onClick={onGenerateViralAlbumTitles}
-              disabled={isLoading}
-              className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all ${
-                isLoading 
-                  ? "bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed" 
-                  : "bg-teal-950 hover:bg-teal-900 text-teal-300 border-teal-500/50 shadow-md active:scale-95"
-              }`}
-            >
-              <span>âš¡ AI Generate Viral Rhyming Titles for All Songs</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={onAutomateTitles || onGenerateViralAlbumTitles}
+                disabled={isLoading}
+                className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all ${
+                  isLoading
+                    ? "bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed"
+                    : "bg-teal-950 hover:bg-teal-900 text-teal-300 border-teal-500/50 shadow-md active:scale-95 cursor-pointer"
+                }`}
+              >
+                <span>⚡ Automate Titles + Track Fields</span>
+              </button>
+              {onGenerateViralAlbumTitles && onAutomateTitles && (
+                <button
+                  onClick={onGenerateViralAlbumTitles}
+                  disabled={isLoading}
+                  className={`px-3 py-3 rounded-xl font-bold text-xs border transition-all ${
+                    isLoading
+                      ? "bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed"
+                      : "bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-600 cursor-pointer"
+                  }`}
+                >
+                  Titles Only
+                </button>
+              )}
+            </div>
         </div>
+
+        {/* Review-ready banner after title automation */}
+        {album.titlesReadyForReview && (
+          <div className="bg-amber-950/50 border border-amber-500/50 rounded-2xl p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                  <span>✅ Titles & track fields ready for review</span>
+                </h3>
+                <p className="text-xs text-amber-100/80 mt-1">
+                  AI filled song titles plus genre, mood, structure, rhyme scheme, key, and lyric seeds from the album theme.
+                  Review each card below, edit anything you like, then mark reviewed or approve all.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {onMarkTitlesReviewed && (
+                  <button
+                    onClick={onMarkTitlesReviewed}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow cursor-pointer"
+                  >
+                    Mark Reviewed
+                  </button>
+                )}
+                {onApproveAllTitles && (
+                  <button
+                    onClick={onApproveAllTitles}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg shadow cursor-pointer"
+                  >
+                    Approve All Titles
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
             {album.songs.map((song) => (
-                <SongConfigurationCard 
-                    key={song.id} 
-                    song={song} 
+                <div key={song.id} className="space-y-2">
+                  {song.titleRationale && (
+                    <div className="text-[11px] text-gray-400 bg-gray-900/60 border border-gray-800 rounded-lg px-3 py-2">
+                      <span className="font-bold text-teal-300/80">Why this title: </span>
+                      {song.titleRationale}
+                    </div>
+                  )}
+                  <SongConfigurationCard
+                    song={song}
                     albumGenres={album.genres}
                     isLoading={isLoading}
                     stylePresets={stylePresets}
@@ -1745,7 +2050,8 @@ const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, o
                     onApprove={onApproveSong}
                     onSuggestIdeas={onSuggestIdeas}
                     onEnhanceIdeas={onEnhanceIdeas}
-                />
+                  />
+                </div>
             ))}
         </div>
 

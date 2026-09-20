@@ -29,6 +29,8 @@ export interface Song {
   referenceSongTitle?: string;
   artistStyleName?: string;
   tags?: string[];
+  /** AI note on why this title fits the album — shown in review */
+  titleRationale?: string;
 }
 
 export interface Album {
@@ -40,6 +42,10 @@ export interface Album {
   songCount: number;
   songs: Song[];
   language?: string;
+  /** Set when AI has filled titles + related fields and the tracklist awaits user review */
+  titlesReadyForReview?: boolean;
+  /** When the last title automation ran */
+  titlesGeneratedAt?: number;
 }
 
 // 16-Language Support for Lyricist Pro

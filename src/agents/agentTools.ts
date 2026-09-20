@@ -240,17 +240,21 @@ Create an evocative visual direction package for the album cover:
       }
 
       // 8. Apply to Active Song Workspace
+      // This tool only prepares a payload — the UI/modal Apply action (or a
+      // wired onApplySongUpdate callback) is what mutates the song workspace.
       case "apply_to_current_song": {
         return {
           toolId: input.toolId,
           success: true,
           data: {
+            applied: false,
+            prepared: true,
             title: input.parameters.title,
             lyrics: input.parameters.lyrics,
             chords: input.parameters.chords,
             customIdeas: input.parameters.customIdeas
           },
-          summaryText: "Prepared song data ready to be applied into active workspace."
+          summaryText: "Prepared song update payload (not written to workspace — use Apply Results)."
         };
       }
 

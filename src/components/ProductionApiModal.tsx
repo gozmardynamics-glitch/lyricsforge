@@ -12,6 +12,11 @@ const ProductionApiModal: React.FC<ProductionApiModalProps> = ({ isOpen, onClose
 
   if (!isOpen) return null;
 
+  // Use the live origin so docs work on localhost AND deployed hosts
+  const apiBase = typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : "http://localhost:3005";
+
   const getCode = () => {
     const payload = {
       theme: "Driving through a midnight thunderstorm in Tokyo",
@@ -24,7 +29,7 @@ const ProductionApiModal: React.FC<ProductionApiModalProps> = ({ isOpen, onClose
     };
 
     if (activeLang === 'curl') {
-      return `curl -X POST "http://localhost:3005/api/generate-lyrics" \\
+      return `curl -X POST "${apiBase}/api/generate-lyrics" \\
   -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload, null, 2)}'`;
     }
@@ -32,16 +37,16 @@ const ProductionApiModal: React.FC<ProductionApiModalProps> = ({ isOpen, onClose
       return `import requests
 
 res = requests.post(
-    "http://localhost:3005/api/generate-lyrics",
+    "${apiBase}/api/generate-lyrics",
     json=${JSON.stringify(payload, null, 4)}
 )
 data = res.json()
 print("Song Title:", data.get("title"))
-print("\nLyrics:\n", data.get("lyricsText"))`;
+print("\\nLyrics:\\n", data.get("lyricsText"))`;
     }
     return `// Production API Integration (TypeScript / Node)
 async function generateLyrics() {
-  const res = await fetch("http://localhost:3005/api/generate-lyrics", {
+  const res = await fetch("${apiBase}/api/generate-lyrics", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(${JSON.stringify(payload, null, 4)})
@@ -124,7 +129,7 @@ generateLyrics();`;
 
         <div className="flex items-center justify-between pt-2 border-t border-gray-800 text-xs">
           <a
-            href="http://localhost:3005/api/openapi.json"
+            href={`${apiBase}/api/openapi.json`}
             target="_blank"
             rel="noreferrer"
             className="text-teal-400 hover:underline font-bold"

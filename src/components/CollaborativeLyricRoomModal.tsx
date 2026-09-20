@@ -138,7 +138,7 @@ Return a JSON array of objects:
               properties: {
                 word: { type: Type.STRING },
                 type: { type: Type.STRING },
-                syllable: { type: Type.NUMBER }
+                syllables: { type: Type.NUMBER }
               },
               required: ["word", "type"]
             }

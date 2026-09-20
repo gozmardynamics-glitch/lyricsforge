@@ -57,6 +57,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
   const [selectedTargetAgentId, setSelectedTargetAgentId] = useState("orchestrator_apollo");
   const [isAgentReplying, setIsAgentReplying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const writersAbortRef = useRef<AbortController | null>(null);
 
   // Agent Form State
   const [formName, setFormName] = useState("");
@@ -206,6 +207,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
   const handleClose = () => {
     // Terminating in-flight work prevents closed modals from burning LLM calls
     pipelineAbortRef.current?.abort();
+    writersAbortRef.current?.abort();
     onClose();
   };
 
@@ -263,6 +265,9 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
     setInputMessage("");
     setIsAgentReplying(true);
 
+    const abortController = new AbortController();
+    writersAbortRef.current = abortController;
+
     try {
       const activeLyrics = activeSongContext?.lyrics?.[0]?.join("\n") || "";
       const reply = await sendWritersRoomMessage({
@@ -277,26 +282,32 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
           key: activeSongContext?.key || pipelineKey,
           lyricsSnippet: activeLyrics,
           customIdeas: activeSongContext?.customIdeas || ""
-        }
+        },
+        signal: abortController.signal
       });
 
       // Cap the rendered history at the last 100 messages (the engine only
       // uses the last 8 for context; unbounded state was pure memory growth)
       setWritersMessages((prev) => [...prev.slice(-99), reply]);
     } catch (err: any) {
-      setWritersMessages((prev) => [
-        ...prev,
-        {
-          id: `msg-err-${Date.now()}`,
-          agentId: "orchestrator_apollo",
-          agentName: "Apollo Orchestrator",
-          agentAvatar: "⚡",
-          role: "orchestrator",
-          content: `Agent response error: ${err.message || String(err)}`,
-          timestamp: Date.now()
-        }
-      ]);
+      if (abortController.signal.aborted || err?.name === "AbortError") {
+        // Closed/cancelled — do not append error chatter
+      } else {
+        setWritersMessages((prev) => [
+          ...prev,
+          {
+            id: `msg-err-${Date.now()}`,
+            agentId: "orchestrator_apollo",
+            agentName: "Apollo Orchestrator",
+            agentAvatar: "⚡",
+            role: "orchestrator",
+            content: `Agent response error: ${err.message || String(err)}`,
+            timestamp: Date.now()
+          }
+        ]);
+      }
     } finally {
+      if (writersAbortRef.current === abortController) writersAbortRef.current = null;
       setIsAgentReplying(false);
     }
   };
@@ -514,7 +525,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
               activeTab === "registry" ? "bg-gray-900 text-teal-300 border-t-2 border-teal-400 shadow-inner" : "text-gray-400 hover:text-white hover:bg-gray-900/50"
             }`}
           >
-            <span>👥 Agent Roster ({agents.length})</span>
+            <span>👥 Agent Management ({agents.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("llmModels")}
@@ -910,7 +921,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>👥 Agent Roster & Custom Specialists</span>
+                    <span>👥 Agent Management — Roster, Skills & Tools</span>
                     <span className="text-[10px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full border border-gray-700">
                       {agents.length} Active
                     </span>
@@ -991,9 +1002,27 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
                       </div>
 
                       {/* Tools Assigned */}
-                      <div className="text-[10px] text-gray-400">
-                        <span className="font-bold text-gray-300">Tools: </span>
-                        {agent.allowedTools.length} assigned
+                      <div className="text-[10px] text-gray-400 space-y-0.5">
+                        <span className="font-bold text-gray-300">Tools ({agent.allowedTools.length}): </span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {agent.allowedTools.length === 0 && <span className="text-gray-500">none</span>}
+                          {agent.allowedTools.map((tid) => {
+                            const tDef = AVAILABLE_AGENT_TOOLS.find((t) => t.id === tid);
+                            return (
+                              <span
+                                key={tid}
+                                title={tDef?.description || tid}
+                                className="text-[9px] bg-gray-900/80 text-amber-200/90 border border-amber-500/30 px-1.5 py-0.5 rounded"
+                              >
+                                {tDef?.name || tid}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        Model: <span className="text-teal-300 font-mono">{agent.preferredModelId}</span>
+                        {" · "}temp {agent.temperature} · {agent.maxTokens} tok
                       </div>
                     </div>
 

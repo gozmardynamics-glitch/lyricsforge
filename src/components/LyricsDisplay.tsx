@@ -75,7 +75,7 @@ const LyricsDisplay = ({
         <div>
           <h5 className="font-bold text-lg text-teal-300 flex items-center gap-2">
             <span>Generated Lyric Versions</span>
-            <span className="text-xs font-normal text-gray-400">3 AI Variations</span>
+            <span className="text-xs font-normal text-gray-400">{lyrics?.length || 0} AI Variation{(lyrics?.length || 0) === 1 ? "" : "s"}</span>
           </h5>
           <p className="text-[11px] text-gray-400">
             ðŸ’¡ Click <strong>ðŸ”Š TTS Flow</strong> to hear narration, <strong>ðŸŽ¨ AI Artwork</strong> for custom album cover, or <strong>ðŸ’¡ Thematic Hook</strong> for opening lines.

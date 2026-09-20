@@ -1,8 +1,50 @@
-﻿import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { LLMModelDefinition, LLMProvider, ModelConnectionStatus, UniversalLLMOptions } from "./agentTypes";
 
 export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
   // --- GOOGLE GEMINI ---
+  {
+    id: "gemini_3_6_flash",
+    name: "Gemini 3.6 Flash",
+    provider: "google_gemini",
+    modelString: "gemini-3.6-flash",
+    endpointUrl: "https://generativelanguage.googleapis.com",
+    contextWindow: 1048576,
+    supportsTools: true,
+    isDefault: true,
+    pricingTier: "low",
+    speedTier: "ultra_fast",
+    recommendedUse: "Ultra-fast lyrical generation, rhythmic meter analysis, real-time rhyme finding.",
+    description: "Google's current general-availability flagship with native JSON schema calling."
+  },
+  {
+    id: "gemini_3_1_pro_preview",
+    name: "Gemini 3.1 Pro (preview)",
+    provider: "google_gemini",
+    modelString: "gemini-3.1-pro-preview",
+    endpointUrl: "https://generativelanguage.googleapis.com",
+    contextWindow: 2097152,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "medium",
+    speedTier: "fast",
+    recommendedUse: "Complex album narrative arcs, deep multisyllabic rhyme schemes, commercial A&R audits.",
+    description: "Deep reasoning engine with a 2M context window for long-form songwriting."
+  },
+  {
+    id: "gemini_3_1_flash_lite",
+    name: "Gemini 3.1 Flash Lite",
+    provider: "google_gemini",
+    modelString: "gemini-3.1-flash-lite",
+    endpointUrl: "https://generativelanguage.googleapis.com",
+    contextWindow: 1048576,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "low",
+    speedTier: "ultra_fast",
+    recommendedUse: "Real-time co-writing assistant and fast chord progressions.",
+    description: "Low-latency model optimized for instant creative flow and tool execution."
+  },
   {
     id: "gemini_2_5_flash",
     name: "Gemini 2.5 Flash",
@@ -11,11 +53,11 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
     endpointUrl: "https://generativelanguage.googleapis.com",
     contextWindow: 1048576,
     supportsTools: true,
-    isDefault: true,
+    isDefault: false,
     pricingTier: "low",
     speedTier: "ultra_fast",
-    recommendedUse: "Ultra-fast lyrical generation, rhythmic meter analysis, real-time rhyme finding.",
-    description: "Google's ultra-fast flagship multimodal model with native JSON schema calling."
+    recommendedUse: "Fast multimodal lyrics generation and scansion.",
+    description: "Google's 2.5 flagship multimodal model."
   },
   {
     id: "gemini_2_5_pro",
@@ -28,25 +70,39 @@ export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
     isDefault: false,
     pricingTier: "medium",
     speedTier: "fast",
-    recommendedUse: "Complex album narrative arcs, deep multisyllabic rhyme schemes, commercial A&R audits.",
-    description: "Deep reasoning engine with 2M context window for long-form songwriting and production."
-  },
-  {
-    id: "gemini_2_0_flash",
-    name: "Gemini 2.0 Flash",
-    provider: "google_gemini",
-    modelString: "gemini-2.0-flash",
-    endpointUrl: "https://generativelanguage.googleapis.com",
-    contextWindow: 1048576,
-    supportsTools: true,
-    isDefault: false,
-    pricingTier: "low",
-    speedTier: "ultra_fast",
-    recommendedUse: "Real-time co-writing assistant and fast chord progressions.",
-    description: "Low-latency model optimized for instant creative flow and tool execution."
+    recommendedUse: "Complex album narrative arcs and commercial A&R audits.",
+    description: "Deep reasoning engine with 2M context window."
   },
 
-  // --- ANTHROPIC CLAUDE & CLAUDE CODE ---
+  // --- ANTHROPIC CLAUDE ---
+  {
+    id: "claude_opus_5",
+    name: "Claude Opus 5",
+    provider: "anthropic",
+    modelString: "claude-opus-5",
+    endpointUrl: "https://api.anthropic.com/v1/messages",
+    contextWindow: 200000,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "high",
+    speedTier: "moderate",
+    recommendedUse: "A&R-level final edits, full-album arc critique, prosody and scansion audits.",
+    description: "Anthropic's most capable model for complex long-form creative analysis."
+  },
+  {
+    id: "claude_sonnet_5",
+    name: "Claude Sonnet 5",
+    provider: "anthropic",
+    modelString: "claude-sonnet-5",
+    endpointUrl: "https://api.anthropic.com/v1/messages",
+    contextWindow: 200000,
+    supportsTools: true,
+    isDefault: false,
+    pricingTier: "medium",
+    speedTier: "fast",
+    recommendedUse: "Best-in-class poetic lyricism, sustained multi-section album narratives, nuanced voice matching.",
+    description: "Anthropic's balanced flagship: deep creative writing with extended reasoning."
+  },
   {
     id: "claude_sonnet_4",
     name: "Claude Sonnet 4",
@@ -417,6 +473,8 @@ export interface ProviderApiKeys {
   groq?: string;
   openrouter?: string;
   custom?: string;
+  /** Bearer token for this deployment's /api proxy (API_ACCESS_TOKEN) */
+  server_access_token?: string;
 }
 
 // localStorage is browser-only; the standalone Node server must fall back to
@@ -481,7 +539,7 @@ export function saveLLMModels(models: LLMModelDefinition[]): void {
 export function getActiveModelId(): string {
   const saved = safeStorageGet(LOCAL_STORAGE_KEY_ACTIVE_MODEL);
   if (saved) return saved;
-  return "gemini_2_5_flash";
+  return "gemini_3_6_flash";
 }
 
 export function setActiveModelId(modelId: string): void {
@@ -489,32 +547,42 @@ export function setActiveModelId(modelId: string): void {
 }
 
 export function getProviderApiKeys(): ProviderApiKeys {
+  const env = (typeof process !== "undefined" && process.env) || ({} as NodeJS.ProcessEnv);
+  const defaults: ProviderApiKeys = {
+    google_gemini: env.GEMINI_API_KEY || env.API_KEY || "",
+    openai: env.OPENAI_API_KEY || "",
+    anthropic: env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY || "",
+    deepseek: env.DEEPSEEK_API_KEY || "",
+    groq: env.GROQ_API_KEY || "",
+    openrouter: env.OPENROUTER_API_KEY || "",
+    custom: env.CUSTOM_LLM_API_KEY || "",
+    server_access_token: env.API_ACCESS_TOKEN || ""
+  };
+
   const raw = safeStorageGet(LOCAL_STORAGE_KEY_PROVIDER_KEYS);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
-        // In Node (standalone server) env vars may arrive later than module load;
-        // only trust a stored key set that actually has content, otherwise fall back to env.
-        const hasAnyKey = Object.values(parsed).some((v) => typeof v === "string" && v.length > 0);
-        if (hasAnyKey) return parsed;
+        return {
+          ...defaults,
+          ...parsed,
+          google_gemini: parsed.google_gemini || defaults.google_gemini,
+          openai: parsed.openai || defaults.openai,
+          anthropic: parsed.anthropic || defaults.anthropic,
+          deepseek: parsed.deepseek || defaults.deepseek,
+          groq: parsed.groq || defaults.groq,
+          openrouter: parsed.openrouter || defaults.openrouter,
+          custom: parsed.custom || defaults.custom,
+          server_access_token: parsed.server_access_token || defaults.server_access_token
+        };
       }
     } catch (e) {
       console.error("Failed to parse provider API keys", e);
     }
   }
 
-  // Runtime environment variables (browser values are injected at build time;
-  // Node standalone reads real process.env / --env-file)
-  const env = (typeof process !== "undefined" && process.env) || ({} as NodeJS.ProcessEnv);
-  return {
-    google_gemini: env.GEMINI_API_KEY || env.API_KEY || "",
-    openai: env.OPENAI_API_KEY || "",
-    anthropic: env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY || "",
-    deepseek: env.DEEPSEEK_API_KEY || "",
-    groq: env.GROQ_API_KEY || "",
-    openrouter: env.OPENROUTER_API_KEY || ""
-  };
+  return defaults;
 }
 
 export function saveProviderApiKeys(keys: ProviderApiKeys): void {
@@ -571,7 +639,7 @@ export function safeExtractJSON<T = any>(rawText: string, fallback: T): T {
 export async function testModelConnection(modelId: string): Promise<ModelConnectionStatus> {
   const startTime = Date.now();
   const models = getStoredLLMModels();
-  const model = models.find((m) => m.id === modelId);
+  const model = models.find((m) => m.id === modelId || m.modelString === modelId);
 
   if (!model) {
     return {
@@ -717,7 +785,7 @@ async function runUniversalLLMCall(
 ): Promise<UniversalLLMCallResult> {
   const models = getStoredLLMModels();
   const activeId = options.modelId || getActiveModelId();
-  const selectedModel = models.find((m) => m.id === activeId);
+  const selectedModel = models.find((m) => m.id === activeId || m.modelString === activeId);
   if (!selectedModel) {
     throw new Error(`Unknown modelId '${activeId}'. Available ids: ${models.map((m) => m.id).join(", ")}`);
   }
@@ -763,7 +831,7 @@ async function runUniversalLLMCall(
         throw new Error("No valid Google Gemini API key configured");
       }
       const ai = new GoogleGenAI({ apiKey });
-      const modelToUse = selectedModel.modelString || "gemini-2.5-flash";
+      const modelToUse = selectedModel.modelString || "gemini-3.6-flash";
 
       const config: any = {
         temperature: temp,
@@ -808,7 +876,7 @@ async function runUniversalLLMCall(
       };
 
       const body: any = {
-        model: selectedModel.modelString || "claude-3-7-sonnet-20250219",
+        model: selectedModel.modelString || "claude-sonnet-5",
         max_tokens: maxTokens,
         temperature: temp,
         messages: [{ role: "user", content: options.userPrompt }]
@@ -856,10 +924,32 @@ async function runUniversalLLMCall(
     ].includes(selectedModel.provider);
 
     if (isOpenAICompatible || selectedModel.endpointUrl) {
-      const endpoint = selectedModel.endpointUrl || "https://api.openai.com/v1/chat/completions";
+      let endpoint = selectedModel.endpointUrl || "https://api.openai.com/v1/chat/completions";
 
-      // For Ollama local, key is not strictly required
-      if (!(apiKey && !isDummyKey) && selectedModel.provider !== "ollama_local") {
+      // Normalize OpenAI-compatible endpoint URLs (e.g. http://localhost:11434/v1 -> http://localhost:11434/v1/chat/completions)
+      // Native Anthropic is handled above; only anthropic_compatible needs the /messages path.
+      if (isOpenAICompatible && selectedModel.provider !== "anthropic_compatible") {
+        const trimmed = endpoint.replace(/\/+$/, "");
+        if (trimmed.endsWith("/v1")) {
+          endpoint = `${trimmed}/chat/completions`;
+        } else if (!trimmed.endsWith("/chat/completions") && !trimmed.includes("/chat/completions?")) {
+          endpoint = `${trimmed}/v1/chat/completions`;
+        }
+      } else if (selectedModel.provider === "anthropic_compatible") {
+        const trimmed = endpoint.replace(/\/+$/, "");
+        if (!trimmed.endsWith("/messages")) {
+          endpoint = `${trimmed}/messages`;
+        }
+      }
+
+      const isLocalHost = /https?:\/\/(localhost|127\.0\.0\.1|::1)(:|\/|$)/i.test(endpoint);
+
+      // For Ollama local or any localhost endpoint, key is not strictly required
+      if (
+        !(apiKey && !isDummyKey) &&
+        selectedModel.provider !== "ollama_local" &&
+        !isLocalHost
+      ) {
         throw new Error(`No valid API key configured for provider '${selectedModel.provider}'`);
       }
 
@@ -915,9 +1005,16 @@ async function runUniversalLLMCall(
 
     throw new Error(`Provider '${selectedModel.provider}' is not supported by the dispatcher`);
   } catch (err: any) {
-    lastError = err instanceof Error ? err : new Error(String(err));
+    let message = err instanceof Error ? err.message : String(err);
+    if (message.includes("Failed to fetch") || message.includes("fetch failed")) {
+      const targetUrl = selectedModel?.endpointUrl || "";
+      if (/localhost|127\.0\.0\.1|::1/i.test(targetUrl)) {
+        message = `Failed to fetch (${targetUrl || "http://localhost:11434"}). Ensure your local Ollama/vLLM server is running (e.g. 'ollama serve') and CORS is enabled (OLLAMA_ORIGINS=*).`;
+      }
+    }
+    lastError = new Error(message);
     if (options.allowFallback) {
-      console.warn(`LLM call failed for model '${selectedModel.id}', using procedural fallback:`, lastError.message);
+      console.warn(`LLM call failed for model '${selectedModel?.id}', using procedural fallback:`, lastError.message);
       return { text: generateProceduralFallback(options), usedFallback: true, error: lastError.message };
     }
     throw lastError;
@@ -961,9 +1058,17 @@ export async function executeUniversalLLMCall(options: UniversalLLMOptions): Pro
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS, 5000) + 5000);
       try {
+        const keys = getProviderApiKeys();
+        const serverToken = keys.server_access_token || "";
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (serverToken) {
+          headers["Authorization"] = `Bearer ${serverToken}`;
+          headers["x-api-key"] = serverToken;
+        }
+
         const res = await fetch("/api/llm/complete", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             modelId: options.modelId,
             systemPrompt: options.systemPrompt,

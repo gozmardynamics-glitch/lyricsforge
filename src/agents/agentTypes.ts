@@ -1,4 +1,4 @@
-﻿export type AgentCategory = 'lyrics' | 'harmony' | 'melody' | 'trends' | 'critic' | 'visuals' | 'general';
+export type AgentCategory = 'lyrics' | 'harmony' | 'melody' | 'trends' | 'critic' | 'visuals' | 'general';
 
 export type AgentToolId = 
   | 'search_web_music_trends'
@@ -139,6 +139,8 @@ export interface PipelineExecutionResult {
   logs: PipelineExecutionLog[];
   finalOutputs: Record<string, string>;
   error?: string;
+  /** True when any stage received a procedural fallback instead of a live LLM reply */
+  usedFallback?: boolean;
 }
 
 export interface WritersRoomMessage {

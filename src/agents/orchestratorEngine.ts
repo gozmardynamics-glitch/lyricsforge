@@ -282,7 +282,13 @@ export async function runOrchestratorPipeline(params: {
     result.currentStageIndex = i;
     emitProgress();
 
-    const agent = agents.find((a) => a.id === stage.agentId) || agents[0];
+    const agent = agents.find((a) => a.id === stage.agentId);
+    if (!agent) {
+      result.status = "error";
+      result.error = `Stage '${stage.name}' references unknown agent '${stage.agentId}'. Reset the agent roster or reassign the stage.`;
+      emitProgress();
+      return result;
+    }
 
     // Build prompt with templated variables
     let prompt = stage.taskPromptTemplate;
@@ -307,6 +313,25 @@ export async function runOrchestratorPipeline(params: {
         maxTokens: agent.maxTokens,
         signal: params.signal
       });
+
+      // Procedural fallback is NOT a successful generation — fail the pipeline
+      // so API/UI never treat canned "Neon shadows" text as a completed run.
+      if (llmResult.usedFallback) {
+        result.usedFallback = true;
+        result.logs.push({
+          id: `log-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: Date.now(),
+          agentId: agent.id,
+          agentName: agent.name,
+          agentAvatar: agent.avatar,
+          stageName: stage.name,
+          content: `[PROCEDURAL FALLBACK — provider unavailable: ${llmResult.error || "unknown error"}]\n\n${llmResult.text}`
+        });
+        result.status = "error";
+        result.error = `Stage '${stage.name}' hit procedural fallback (no live LLM): ${llmResult.error || "provider unavailable"}. Configure an API key or reachable model, then re-run.`;
+        emitProgress();
+        return result;
+      }
 
       outputs[stage.outputKey] = llmResult.text;
       result.finalOutputs[stage.outputKey] = llmResult.text;
@@ -336,9 +361,7 @@ export async function runOrchestratorPipeline(params: {
         agentAvatar: agent.avatar,
         stageName: stage.name,
         toolCalls,
-        content: llmResult.usedFallback
-          ? `[PROCEDURAL FALLBACK — provider unavailable: ${llmResult.error || "unknown error"}]\n\n${llmResult.text}`
-          : llmResult.text
+        content: llmResult.text
       };
 
       result.logs.push(logEntry);
@@ -381,7 +404,10 @@ export async function sendWritersRoomMessage(params: {
   signal?: AbortSignal;
 }): Promise<WritersRoomMessage> {
   const agents = getStoredAgents();
-  const targetAgent = agents.find((a) => a.id === params.targetAgentId) || agents[0];
+  const targetAgent = agents.find((a) => a.id === params.targetAgentId);
+  if (!targetAgent) {
+    throw new Error(`Unknown agent id '${params.targetAgentId}'. Available: ${agents.map((a) => a.id).join(", ")}`);
+  }
 
   const recentHistory = params.conversationHistory.slice(-8).map((m) => {
     return `${m.agentName} (${m.role}): ${m.content}`;
@@ -412,9 +438,11 @@ Engage directly with the user and other agents' ideas. Offer concrete musical so
     signal: params.signal
   });
 
-  const responseText = llmResult.usedFallback
-    ? `[PROCEDURAL FALLBACK — provider unavailable: ${llmResult.error || "unknown error"}]\n\n${llmResult.text}`
-    : llmResult.text;
+  // Surface fallback as a hard error so the UI does not present canned text
+  // as a live agent reply.
+  if (llmResult.usedFallback) {
+    throw new Error(`Agent reply unavailable (procedural fallback): ${llmResult.error || "provider unreachable"}. Configure a model API key in Settings or the LLM registry.`);
+  }
 
   return {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -422,7 +450,8 @@ Engage directly with the user and other agents' ideas. Offer concrete musical so
     agentName: targetAgent.name,
     agentAvatar: targetAgent.avatar,
     role: "agent",
-    content: responseText,
-    timestamp: Date.now()
+    content: llmResult.text,
+    timestamp: Date.now(),
+    toolCalls: undefined
   };
 }

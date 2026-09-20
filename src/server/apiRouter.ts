@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { GoogleGenAI } from "@google/genai";
 import { OPENAPI_SPEC } from "./openapiSpec";
 import { getProviderApiKeys, getServerCustomModels, getStoredLLMModels, registerServerCustomModel, executeUniversalLLMCallDetailed, testModelConnection } from "../agents/llmRegistry";
-import { DEFAULT_AGENTS } from "../agents/defaultAgents";
+import { AVAILABLE_AGENT_TOOLS, AVAILABLE_SKILLS, DEFAULT_AGENTS } from "../agents/defaultAgents";
 import { executeAgentTool } from "../agents/agentTools";
-import { PRECONFIGURED_PIPELINES, runOrchestratorPipeline, sendWritersRoomMessage } from "../agents/orchestratorEngine";
+import { getStoredAgents, PRECONFIGURED_PIPELINES, runOrchestratorPipeline, sendWritersRoomMessage } from "../agents/orchestratorEngine";
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB request body cap (DoS guard)
 
@@ -24,7 +24,7 @@ function isAuthorized(req: IncomingMessage): boolean {
 }
 
 const UNAUTHORIZED_BODY = {
-  error: "Unauthorized — set Authorization: Bearer <API_ACCESS_TOKEN> (or x-api-key)"
+  error: "Unauthorized ï¿½ set Authorization: Bearer <API_ACCESS_TOKEN> (or x-api-key)"
 };
 
 interface ParsedBody {
@@ -123,7 +123,7 @@ export async function handleApiRequest(
       return sendJson(res, 200, OPENAPI_SPEC);
     }
 
-    // 3. Models List — what the server's dispatcher can actually resolve:
+    // 3. Models List ï¿½ what the server's dispatcher can actually resolve:
     // built-in catalog + any models registered via POST /api/models/register.
     // (The browser additionally merges its own localStorage registry.)
     if (subPath === "/models/list" && method === "GET") {
@@ -171,7 +171,7 @@ export async function handleApiRequest(
         return sendJson(res, 502, {
           generated: false,
           fallback: "procedural-canvas",
-          reason: "No GEMINI_API_KEY configured on the server — image generation is unavailable."
+          reason: "No GEMINI_API_KEY configured on the server ï¿½ image generation is unavailable."
         });
       }
 
@@ -226,12 +226,80 @@ export async function handleApiRequest(
       return sendJson(res, 200, result);
     }
 
-    // 5. Agents List
+    // 5. Agents List â€” stored roster (browser localStorage / defaults on Node)
+    // plus skill/tool catalogs so management UIs can resolve names.
     if (subPath === "/agents/list" && method === "GET") {
       return sendJson(res, 200, {
-        agents: DEFAULT_AGENTS,
-        pipelines: PRECONFIGURED_PIPELINES
+        agents: getStoredAgents(),
+        skills: AVAILABLE_SKILLS,
+        tools: AVAILABLE_AGENT_TOOLS,
+        pipelines: PRECONFIGURED_PIPELINES,
+        builtInCount: DEFAULT_AGENTS.length
       });
+    }
+
+    // 5b. Agent management CRUD (browser-managed agents mirror via localStorage;
+    // on the standalone Node server these operate on the in-process default roster).
+    if (subPath === "/agents/upsert" && method === "POST") {
+      if (!isAuthorized(req)) {
+        return sendJson(res, 401, UNAUTHORIZED_BODY);
+      }
+      const parsed = await readRequestBody(req);
+      if (!parsed.ok) {
+        return sendJson(res, 400, { error: parsed.error });
+      }
+      const body = parsed.body;
+      if (!body || !body.id || !body.name || !body.systemPrompt) {
+        return sendJson(res, 400, { error: "Agent body requires 'id', 'name', and 'systemPrompt'" });
+      }
+      const current = getStoredAgents();
+      const idx = current.findIndex((a) => a.id === body.id);
+      const existing = idx >= 0 ? current[idx] : null;
+      if (existing?.isBuiltIn && body.isBuiltIn === false) {
+        return sendJson(res, 400, { error: "Built-in agents cannot have isBuiltIn cleared" });
+      }
+      const agent = {
+        ...(existing || {}),
+        ...body,
+        id: body.id,
+        isBuiltIn: existing?.isBuiltIn ?? Boolean(body.isBuiltIn),
+        colorTheme: body.colorTheme || existing?.colorTheme || DEFAULT_AGENTS[0].colorTheme
+      };
+      const updated = idx >= 0 ? current.map((a, i) => (i === idx ? agent : a)) : [...current, agent];
+      // Save only when browser storage exists; Node keeps in-memory via getStoredAgents defaults
+      try {
+        const { saveStoredAgents } = await import("../agents/orchestratorEngine");
+        saveStoredAgents(updated as any);
+      } catch { /* Node without storage */ }
+      return sendJson(res, 200, { saved: true, agent });
+    }
+
+    if (subPath === "/agents/delete" && method === "POST") {
+      if (!isAuthorized(req)) {
+        return sendJson(res, 401, UNAUTHORIZED_BODY);
+      }
+      const parsed = await readRequestBody(req);
+      if (!parsed.ok) {
+        return sendJson(res, 400, { error: parsed.error });
+      }
+      const agentId = parsed.body?.agentId;
+      if (!agentId || typeof agentId !== "string") {
+        return sendJson(res, 400, { error: "Missing required 'agentId'" });
+      }
+      const current = getStoredAgents();
+      const target = current.find((a) => a.id === agentId);
+      if (!target) {
+        return sendJson(res, 404, { error: `Agent '${agentId}' not found` });
+      }
+      if (target.isBuiltIn) {
+        return sendJson(res, 400, { error: "Built-in agents cannot be deleted" });
+      }
+      const updated = current.filter((a) => a.id !== agentId);
+      try {
+        const { saveStoredAgents } = await import("../agents/orchestratorEngine");
+        saveStoredAgents(updated as any);
+      } catch { /* Node without storage */ }
+      return sendJson(res, 200, { deleted: true, agentId, remaining: updated.length });
     }
 
     // 6. Generate Song Lyrics
@@ -282,7 +350,7 @@ Return complete lyrics with section headers.`;
 
       if (llmResult.usedFallback) {
         return sendJson(res, 502, {
-          error: "LLM provider unavailable — no lyrics were generated",
+          error: "LLM provider unavailable ï¿½ no lyrics were generated",
           detail: llmResult.error || "Provider call failed and procedural fallback was suppressed for API callers",
           modelRequested: modelId
         });
@@ -335,7 +403,8 @@ Return complete lyrics with section headers.`;
         }
       });
 
-      const statusCode = result.status === "completed" ? 200 : 502;
+      // Completed without fallback â†’ 200; anything else (error, cancel, fallback) â†’ 502
+      const statusCode = result.status === "completed" && !result.usedFallback ? 200 : 502;
       return sendJson(res, statusCode, result);
     }
 

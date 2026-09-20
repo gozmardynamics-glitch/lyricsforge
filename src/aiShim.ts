@@ -19,12 +19,14 @@ export const callUniversalAI = async (options: any) => {
   const maxTokens = options.maxTokens ?? options.config?.maxOutputTokens ?? 3000;
 
   const raw = await executeUniversalLLMCall({
+    modelId: options.model || options.modelId || options.config?.model,
     userPrompt,
     systemPrompt,
     responseFormat: isJson ? "json" : "text",
     jsonSchema,
     temperature: temp,
-    maxTokens
+    maxTokens,
+    signal: options.signal || options.config?.signal
   });
 
   return {

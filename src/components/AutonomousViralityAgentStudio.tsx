@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
+import { safeExtractJSON } from "../agents/llmRegistry";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
 import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOODS, DEFAULT_STYLE_PRESETS } from "../constants";
 import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMarkdown, countSyllablesInWord, countSyllablesInLine } from "./shared";
@@ -38,6 +39,18 @@ const AutonomousViralityAgentStudio = ({
   const [executionLogs, setExecutionLogs] = useState<{ step: string; detail: string; timestamp: string }[]>([]);
   const [result, setResult] = useState<AgenticLyricResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const agentLoopAbortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight agent loop when the component unmounts
+  useEffect(() => {
+    return () => {
+      agentLoopAbortRef.current?.abort();
+    };
+  }, []);
+
+  const stopAgentLoop = () => {
+    agentLoopAbortRef.current?.abort();
+  };
   const [activeResultTab, setActiveResultTab] = useState<'lyrics' | 'production' | 'critics' | 'checklist' | 'logs' | 'activityLog'>('lyrics');
   const [savedActivityLogs, setSavedActivityLogs] = useState<any[]>([]);
 
@@ -275,11 +288,15 @@ Instructions:
 
   const handleRunAgentLoop = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!conceptAndStory.trim()) return;
+    if (!conceptAndStory.trim() || isExecuting) return;
 
     if (youtubeStyleLink || referenceSongTitle || artistStyleName) {
       recordRecentStyle({ youtubeStyleLink, referenceSongTitle, artistStyleName });
     }
+
+    const abortController = new AbortController();
+    agentLoopAbortRef.current = abortController;
+    const signal = abortController.signal;
 
     setIsExecuting(true);
     setErrorMsg("");
@@ -293,11 +310,17 @@ Instructions:
       logsBuffer.push({ step: stepName, detail: detailText, timestamp: timeStr });
       setExecutionLogs([...logsBuffer]);
     };
+    const ensureActive = () => {
+      if (signal.aborted) {
+        throw new DOMException("Agent loop cancelled by user", "AbortError");
+      }
+    };
 
     try {
       // --- STAGE 1: OCCASION & CONTEXT ENRICHMENT ---
+      ensureActive();
       appendLog("Stage 1: Input & Occasion Parser", `Interpreting occasion '${activeOccasionText}' with emotional tone '${emotionalTone}' and target genre '${targetGenre}'...`);
-      
+
       const stage1Prompt = `
 You are the Orchestrator Agent of an Autonomous Viral Lyric & Music Producer.
 Task: Enrich this user song request into an agentic creative context.
@@ -318,6 +341,7 @@ Generate a JSON object with:
       const stage1Res = await ai.models.generateContent({
         model: 'gemini-3.6-flash',
         contents: stage1Prompt,
+        signal,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -331,16 +355,17 @@ Generate a JSON object with:
           }
         }
       });
-      const stage1Data = JSON.parse(stage1Res.text || "{}");
+      ensureActive();
+      const stage1Data = safeExtractJSON(stage1Res.text || "{}", {} as any);
       appendLog("Stage 1 Complete", `Context enriched: ${stage1Data.narrativePerspective} perspective. Sensory guideline: ${stage1Data.sensoryTargetRatio}`);
 
       // --- STAGE 2: GLOBAL CHART RESEARCH & STYLE RETRIEVAL ---
       setCurrentAgentStep(2);
-      appendLog("Stage 2: Chart & Virality Retrieval Engine", `Scraping Billboard Global 200 & Spotify Viral 50 trends for ${targetGenre}...`);
+      appendLog("Stage 2: Chart & Virality Retrieval Engine", `Synthesizing chart/trend heuristics for ${targetGenre} from model knowledge — not live web data...`);
 
       const stage2Prompt = `
-You are the Chart Trend Analysis Agent.
-Analyze current Billboard Global 200 and Spotify Viral 50 trends for genre: ${targetGenre}.
+You are the Chart Trend Analysis Agent (knowledge synthesis — you have NO live web access; do not claim real-time chart scraping).
+Analyze Billboard Global 200 and Spotify Viral 50 style trends from your training knowledge for genre: ${targetGenre}.
 
 Identify key viral formulas:
 1. Average line length and syllable count.
@@ -721,10 +746,16 @@ Return JSON:
         result: finalAgenticResult,
         timestamp: finalAgenticResult.timestamp
       });
-    } catch (err) {
-      console.error("Agentic Loop Error:", err);
-      setErrorMsg("Failed to complete autonomous agent loop. Please try again.");
+    } catch (err: any) {
+      if (err?.name === "AbortError" || agentLoopAbortRef.current?.signal.aborted) {
+        setErrorMsg("Agent loop cancelled.");
+        appendLog("Cancelled", "Agent loop stopped by user.");
+      } else {
+        console.error("Agentic Loop Error:", err);
+        setErrorMsg(err?.message || "Failed to complete autonomous agent loop. Please try again.");
+      }
     } finally {
+      if (agentLoopAbortRef.current === abortController) agentLoopAbortRef.current = null;
       setIsExecuting(false);
       setCurrentAgentStep(0);
     }
@@ -1131,13 +1162,14 @@ Return JSON:
           </div>
 
           {/* Submit Action Button with Tooltip */}
-          <Tooltip text="Triggers the 6-stage TaskOrchestrator pipeline: research, outline, drafting, 4-critic loop, production package, & virality scoring">
-            <button
-              type="submit"
-              disabled={isExecuting || !conceptAndStory.trim()}
-              className={`w-full py-4 px-6 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-3 shadow-xl ${
-                isExecuting || !conceptAndStory.trim()
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed opacity-60"
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Tooltip text="Triggers the 6-stage TaskOrchestrator pipeline: research, outline, drafting, 4-critic loop, production package, & virality scoring">
+              <button
+                type="submit"
+                disabled={isExecuting || !conceptAndStory.trim()}
+                className={`flex-1 py-4 px-6 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-3 shadow-xl ${
+                  isExecuting || !conceptAndStory.trim()
+                    ? "bg-gray-700 text-gray-400 cursor-not-allowed opacity-60"
                   : "bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-500 hover:to-emerald-500 cursor-pointer active:scale-[0.99]"
               }`}
             >
@@ -1153,6 +1185,16 @@ Return JSON:
               )}
             </button>
           </Tooltip>
+          {isExecuting && (
+            <button
+              type="button"
+              onClick={stopAgentLoop}
+              className="sm:w-40 py-4 px-4 rounded-2xl font-bold text-red-300 bg-red-950/80 hover:bg-red-900 border border-red-500/50 transition-all cursor-pointer"
+            >
+              Stop
+            </button>
+          )}
+        </div>
         </form>
 
         {errorMsg && (
