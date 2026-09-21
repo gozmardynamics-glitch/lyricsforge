@@ -6,8 +6,16 @@ import { generateProceduralLyricVersions } from "../agents/proceduralLyrics";
 import { AVAILABLE_AGENT_TOOLS, AVAILABLE_SKILLS, DEFAULT_AGENTS } from "../agents/defaultAgents";
 import { executeAgentTool } from "../agents/agentTools";
 import { getStoredAgents, PRECONFIGURED_PIPELINES, runOrchestratorPipeline, sendWritersRoomMessage } from "../agents/orchestratorEngine";
+import {
+  getDriveStorageStatus,
+  syncLibraryToDrive,
+  loadLibraryFromDrive,
+  listDriveLibrary,
+  writeDriveConfig,
+} from "./driveStorage";
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB request body cap (DoS guard)
+const MAX_DRIVE_SYNC_BYTES = 12 * 1024 * 1024; // library payloads with full lyrics can be larger
 
 /**
  * When API_ACCESS_TOKEN is set, every mutating endpoint requires
@@ -34,7 +42,7 @@ interface ParsedBody {
   error?: string;
 }
 
-function readRequestBody(req: IncomingMessage): Promise<ParsedBody> {
+function readRequestBody(req: IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<ParsedBody> {
   return new Promise((resolve) => {
     let size = 0;
     const chunks: Buffer[] = [];
@@ -47,9 +55,9 @@ function readRequestBody(req: IncomingMessage): Promise<ParsedBody> {
     };
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         req.destroy();
-        finish({ ok: false, error: `Request body exceeds ${MAX_BODY_BYTES} byte limit` });
+        finish({ ok: false, error: `Request body exceeds ${maxBytes} byte limit` });
         return;
       }
       chunks.push(chunk);
@@ -537,6 +545,93 @@ Return complete lyrics with section headers.`;
       });
 
       return sendJson(res, 200, toolResult);
+    }
+
+    // 10. Google Drive primary storage
+    if (subPath === "/drive/status" && method === "GET") {
+      return sendJson(res, 200, getDriveStorageStatus());
+    }
+
+    if (subPath === "/drive/list" && method === "GET") {
+      return sendJson(res, 200, listDriveLibrary());
+    }
+
+    if (subPath === "/drive/sync" && method === "POST") {
+      if (!isAuthorized(req)) {
+        return sendJson(res, 401, UNAUTHORIZED_BODY);
+      }
+      const parsed = await readRequestBody(req, MAX_DRIVE_SYNC_BYTES);
+      if (!parsed.ok) {
+        return sendJson(res, 400, { error: parsed.error });
+      }
+      const body = parsed.body || {};
+      const payload = {
+        albums: Array.isArray(body.albums) ? body.albums : [],
+        songs: Array.isArray(body.songs) ? body.songs : [],
+        meta: body.meta && typeof body.meta === "object" ? body.meta : { source: "api/drive/sync" },
+      };
+      if (payload.albums.length === 0 && payload.songs.length === 0) {
+        return sendJson(res, 400, { error: "Nothing to sync — provide non-empty 'albums' and/or 'songs'" });
+      }
+      const result = syncLibraryToDrive(payload);
+      if (!result.ok) {
+        return sendJson(res, 503, {
+          error: result.error || "Google Drive sync failed",
+          drive: getDriveStorageStatus(),
+        });
+      }
+      writeDriveConfig({
+        primary: true,
+        lastSyncAt: Date.now(),
+        lastSyncSource: "api/drive/sync",
+        albumCount: payload.albums.length,
+        songCount: payload.songs.length,
+      });
+      return sendJson(res, 200, {
+        synced: true,
+        ...result,
+        drive: getDriveStorageStatus(),
+      });
+    }
+
+    if (subPath === "/drive/load" && method === "GET" || subPath === "/drive/load" && method === "POST") {
+      if (method === "POST" && !isAuthorized(req)) {
+        return sendJson(res, 401, UNAUTHORIZED_BODY);
+      }
+      let backupFolder: string | undefined;
+      if (method === "POST") {
+        const parsed = await readRequestBody(req, MAX_BODY_BYTES);
+        if (!parsed.ok) return sendJson(res, 400, { error: parsed.error });
+        backupFolder = parsed.body?.backupFolder;
+      } else {
+        const q = (req.url || "").split("?")[1] || "";
+        const params = new URLSearchParams(q);
+        backupFolder = params.get("backupFolder") || undefined;
+      }
+      const loaded = loadLibraryFromDrive(backupFolder);
+      if (!loaded.ok || !loaded.data) {
+        return sendJson(res, 404, { error: loaded.error || "No Drive library found", drive: getDriveStorageStatus() });
+      }
+      return sendJson(res, 200, {
+        loaded: true,
+        source: loaded.source,
+        albums: loaded.data.albums || [],
+        songs: loaded.data.songs || [],
+        meta: loaded.data.meta || {},
+        drive: getDriveStorageStatus(),
+      });
+    }
+
+    if (subPath === "/drive/set-primary" && method === "POST") {
+      if (!isAuthorized(req)) {
+        return sendJson(res, 401, UNAUTHORIZED_BODY);
+      }
+      const status = getDriveStorageStatus();
+      if (!status.available) {
+        return sendJson(res, 503, { error: status.note, drive: status });
+      }
+      writeDriveConfig({ primary: true, enabledAt: Date.now(), note: "Set primary via API" });
+      return sendJson(res, 200, { primary: true, drive: getDriveStorageStatus() });
     }
 
     // 10. Server-side LLM completion proxy.

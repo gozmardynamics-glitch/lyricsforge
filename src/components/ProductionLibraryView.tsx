@@ -112,6 +112,136 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
   const [enhancerInitialLine, setEnhancerInitialLine] = useState("");
   const [selectedSongForSheet, setSelectedSongForSheet] = useState<Song | null>(null);
   const [selectedAlbumForSheet, setSelectedAlbumForSheet] = useState<Album | null>(null);
+  const [driveStatus, setDriveStatus] = useState<{
+    available: boolean;
+    rootPath: string | null;
+    libraryRoot: string | null;
+    lastSyncAt: number | null;
+    note?: string;
+  } | null>(null);
+  const [isDriveBusy, setIsDriveBusy] = useState(false);
+
+  const fetchDriveStatus = async () => {
+    try {
+      const res = await fetch("/api/drive/status");
+      if (!res.ok) return null;
+      const data = await res.json();
+      setDriveStatus(data);
+      return data;
+    } catch {
+      setDriveStatus(null);
+      return null;
+    }
+  };
+
+  // Primary storage: Google Drive when available
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const status = await fetchDriveStatus();
+      if (cancelled || !status?.available) return;
+      try {
+        const res = await fetch("/api/drive/load");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data?.loaded) return;
+        const albums = (Array.isArray(data.albums) ? data.albums : []).map((a: Album) => normalizeAlbum(a));
+        const songs = (Array.isArray(data.songs) ? data.songs : []).map((s: Song) => normalizeSong(s));
+        if (albums.length === 0 && songs.length === 0) return;
+        setLibraryData(prev => {
+          // Drive is primary — prefer Drive content but keep local-only extras
+          const driveAlbumIds = new Set(albums.map((a: Album) => a.id));
+          const driveSongIds = new Set(songs.map((s: Song) => s.id));
+          const localOnlyAlbums = prev.albums.filter((a: Album) => !driveAlbumIds.has(a.id));
+          const localOnlySongs = prev.songs.filter((s: Song) => !driveSongIds.has(s.id));
+          const merged = { albums: [...albums, ...localOnlyAlbums], songs: [...songs, ...localOnlySongs] };
+          try {
+            localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(merged));
+          } catch { /* quota */ }
+          return merged;
+        });
+      } catch (e) {
+        console.warn("Drive primary load skipped:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSyncToGoogleDrive = async () => {
+    setIsDriveBusy(true);
+    try {
+      const status = await fetchDriveStatus();
+      if (!status?.available) {
+        alert(
+          "Google Drive is not available on this device.\n\n" +
+          "Install Google Drive for Desktop and sign in, or set LYRICSFORGE_DRIVE_ROOT to your Drive folder.\n" +
+          (status?.note || "")
+        );
+        return;
+      }
+      const res = await fetch("/api/drive/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          albums: libraryData.albums,
+          songs: libraryData.songs,
+          meta: {
+            source: "ProductionLibraryView",
+            primaryStorage: "google-drive",
+            syncedAt: new Date().toISOString(),
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Drive sync failed: ${data.error || res.statusText}\n${data.drive?.libraryRoot || ""}`);
+        return;
+      }
+      await fetchDriveStatus();
+      const when = data.drive?.lastSyncAt
+        ? new Date(data.drive.lastSyncAt).toLocaleString()
+        : new Date().toLocaleString();
+      alert(
+        `Synced to Google Drive (primary storage).\n\n` +
+        `Folder: ${data.libraryRoot}\n` +
+        `Albums: ${libraryData.albums.length} → Library/albums/<date>_<slug>/\n` +
+        `Backup: backups/${data.backupFolder || "latest"}/\n` +
+        `Time: ${when}`
+      );
+    } catch (err: any) {
+      alert(`Drive sync error: ${err?.message || String(err)}`);
+    } finally {
+      setIsDriveBusy(false);
+    }
+  };
+
+  const handleLoadFromGoogleDrive = async () => {
+    setIsDriveBusy(true);
+    try {
+      const res = await fetch("/api/drive/load");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.loaded) {
+        alert(`Could not load from Drive: ${data.error || "No library found on Drive yet."}`);
+        return;
+      }
+      const albums = (data.albums || []).map((a: Album) => normalizeAlbum(a));
+      const songs = (data.songs || []).map((s: Song) => normalizeSong(s));
+      setLibraryData(prev => {
+        const byAlbum = new Map(prev.albums.map((a: Album) => [a.id, a]));
+        albums.forEach((a: Album) => byAlbum.set(a.id, a));
+        const bySong = new Map(prev.songs.map((s: Song) => [s.id, s]));
+        songs.forEach((s: Song) => bySong.set(s.id, s));
+        const merged = { albums: [...byAlbum.values()], songs: [...bySong.values()] };
+        try { localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(merged)); } catch { /* quota */ }
+        return merged;
+      });
+      alert(`Loaded from Google Drive: ${albums.length} albums, ${songs.length} singles.\nSource: ${data.source || "Drive library"}`);
+    } catch (err: any) {
+      alert(`Drive load error: ${err?.message || String(err)}`);
+    } finally {
+      setIsDriveBusy(false);
+    }
+  };
 
   const [libraryData, setLibraryData] = useState<{ albums: Album[]; songs: Song[] }>(() => {
     let base: { albums: Album[]; songs: Song[] } = { albums: [], songs: [] };
@@ -441,9 +571,38 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
             {libraryData.albums.length} Albums • {libraryData.songs.length} Single Produced Songs
             {" "}• Birthday Collection: 4 albums / 40 songs included
           </p>
+          <p className="text-[11px] mt-1">
+            {driveStatus?.available ? (
+              <span className="text-emerald-300">
+                ☁ Primary storage: Google Drive
+                {driveStatus.libraryRoot ? ` — ${driveStatus.libraryRoot}` : ""}
+                {driveStatus.lastSyncAt ? ` · last sync ${new Date(driveStatus.lastSyncAt).toLocaleString()}` : ""}
+              </span>
+            ) : (
+              <span className="text-amber-300">
+                ⚠ Local browser storage (Drive not mounted)
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleSyncToGoogleDrive}
+            disabled={isDriveBusy}
+            title="Push library to Google Drive primary storage (dated album folders + backups)"
+            className="px-3.5 py-2 bg-gradient-to-r from-sky-700 to-blue-600 hover:from-sky-600 hover:to-blue-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+          >
+            <span>{isDriveBusy ? "☁ Syncing…" : "☁ Sync to Google Drive"}</span>
+          </button>
+          <button
+            onClick={handleLoadFromGoogleDrive}
+            disabled={isDriveBusy}
+            title="Load primary library from Google Drive"
+            className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-sky-300 border border-sky-500/40 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+          >
+            <span>⇩ Load from Drive</span>
+          </button>
           <button
             onClick={handleLoadBirthdayCollection}
             className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
