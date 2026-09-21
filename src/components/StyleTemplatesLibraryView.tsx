@@ -297,7 +297,7 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
             Songwriting Prompt Configurations & Fingerprints
           </span>
           <h2 className="text-2xl md:text-3xl font-black text-white mt-1.5 flex items-center gap-2">
-            ðŸŽ¨ Style Templates Library
+            🎨 Style Templates Library
           </h2>
           <p className="text-gray-400 text-xs mt-1">
             Save, customize, and reuse proven artist prompt styles, rhyme schemes, cadence meters, and reference tracks.
@@ -309,16 +309,16 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
             onClick={handleOpenCreateModal}
             className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
           >
-            <span>âž• New Custom Template</span>
+            <span>➕ New Custom Template</span>
           </button>
           <button
             onClick={handleExportTemplatesJSON}
             className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
           >
-            <span>ðŸ“¥ Export JSON</span>
+            <span>📥 Export JSON</span>
           </button>
           <label className="px-3.5 py-2 bg-teal-950/80 hover:bg-teal-900 border border-teal-500/40 text-teal-300 hover:text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer">
-            <span>ðŸ“¤ Import JSON</span>
+            <span>📤 Import JSON</span>
             <input type="file" accept=".json" onChange={handleImportTemplatesJSON} className="hidden" />
           </label>
         </div>
@@ -335,7 +335,7 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
               placeholder="Search templates by artist, title, flow rhythm, or signature..."
               className="bg-gray-900 text-xs text-white p-3 rounded-xl border border-gray-700 focus:outline-none focus:ring-1 focus:ring-teal-400 w-full pl-9"
             />
-            <span className="absolute left-3 top-3 text-xs text-gray-500">ðŸ”</span>
+            <span className="absolute left-3 top-3 text-xs text-gray-500"></span>
           </div>
           <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">
             Showing {filteredTemplates.length} of {templates.length} Templates
@@ -377,7 +377,7 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
                   </span>
                   {template.isCustom && (
                     <span className="text-[9px] font-bold text-amber-300 bg-amber-950 border border-amber-500/30 px-2 py-0.5 rounded">
-                      Custom â˜…
+                      Custom ★
                     </span>
                   )}
                 </div>
@@ -390,14 +390,14 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
                         className="text-gray-400 hover:text-teal-300 text-xs p-1"
                         title="Edit template"
                       >
-                        âœï¸
+                        
                       </button>
                       <button
                         onClick={() => handleDeleteTemplate(template.id)}
                         className="text-gray-400 hover:text-red-400 text-xs p-1"
                         title="Delete template"
                       >
-                        ðŸ—‘ï¸
+                        🗑
                       </button>
                     </>
                   )}
@@ -416,23 +416,23 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
               <div className="bg-gray-900/90 p-3 rounded-xl border border-gray-700/80 space-y-2 text-xs">
                 <div>
                   <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider block">
-                    ðŸ¥ Cadence & Meter
+                     Cadence & Meter
                   </span>
                   <p className="text-gray-300 text-[11px] mt-0.5">{template.cadenceAndMeter}</p>
                 </div>
 
                 <div>
                   <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block">
-                    ðŸ”— Rhyme Scheme & Density
+                    🔗 Rhyme Scheme & Density
                   </span>
                   <p className="text-gray-300 text-[11px] mt-0.5">
-                    {template.defaultRhymeScheme || "ABAB"} â€¢ {template.rhymeDensity}
+                    {template.defaultRhymeScheme || "ABAB"} • {template.rhymeDensity}
                   </p>
                 </div>
 
                 <div>
                   <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
-                    ðŸ“– Vocabulary & Tone
+                    📖 Vocabulary & Tone
                   </span>
                   <p className="text-gray-300 text-[11px] mt-0.5">{template.vocabularyStyle}</p>
                 </div>
@@ -440,7 +440,7 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
                 {template.referenceLinkOrLyrics && (
                   <div>
                     <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">
-                      ðŸŽ¥ Reference
+                      🎥 Reference
                     </span>
                     <a
                       href={template.referenceLinkOrLyrics}
@@ -462,13 +462,13 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
                   onClick={() => onApplyTemplateToTheme(template)}
                   className="py-2.5 px-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1 text-center"
                 >
-                  <span>âœ¨ Use in Theme</span>
+                  <span>✨ Use in Theme</span>
                 </button>
                 <button
                   onClick={() => onApplyTemplateToAgent(template)}
                   className="py-2.5 px-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1 text-center"
                 >
-                  <span>ðŸš€ Virality Studio</span>
+                  <span>🚀 Virality Studio</span>
                 </button>
               </div>
             </div>
@@ -482,14 +482,14 @@ const StyleTemplatesLibraryView: React.FC<StyleTemplatesLibraryViewProps> = ({
           <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 max-w-xl w-full max-h-[90vh] overflow-y-auto space-y-4 animate-fade-in shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-700 pb-3">
               <h3 className="text-xl font-black text-white flex items-center gap-2">
-                <span>ðŸŽ¨</span>
+                <span>🎨</span>
                 <span>{editingTemplate ? "Edit Style Template" : "Create New Style Template"}</span>
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-white text-lg p-1"
               >
-                âœ•
+                ✕
               </button>
             </div>
 

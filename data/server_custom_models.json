@@ -1,0 +1,25 @@
+{
+  "models": [
+    {
+      "id": "e2e_test_custom_model",
+      "name": "E2E Test Custom Model",
+      "provider": "openai_compatible",
+      "modelString": "e2e-test-model",
+      "endpointUrl": "http://127.0.0.1:9/v1/chat/completions",
+      "contextWindow": 64000,
+      "supportsTools": false,
+      "description": "Custom model registered at runtime (openai_compatible)."
+    },
+    {
+      "provider": "openai_compatible",
+      "endpointUrl": "http://127.0.0.1:9/v1/chat/completions",
+      "name": "E2E Persisted Model",
+      "id": "e2e_server_persist_model",
+      "modelString": "e2e-persist",
+      "contextWindow": 64000,
+      "supportsTools": false,
+      "description": "Custom model registered at runtime (openai_compatible)."
+    }
+  ],
+  "updatedAt": 1789986112163
+}

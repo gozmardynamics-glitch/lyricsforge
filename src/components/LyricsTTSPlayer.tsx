@@ -171,7 +171,7 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
         <div className="flex items-center justify-between border-b border-gray-800 pb-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-300 text-lg shadow-sm">
-              ðŸ”Š
+              🔊
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
@@ -185,7 +185,7 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
             onClick={onClose}
             className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -224,7 +224,7 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
                     <span>{line}</span>
                     {isCurrent && (
                       <span className="text-[10px] font-bold text-teal-300 bg-teal-950 px-2 py-0.5 rounded animate-pulse">
-                        â–¶ SPEAKING
+                        ▶ SPEAKING
                       </span>
                     )}
                   </div>
@@ -298,14 +298,14 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
               className="px-3.5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5"
               title="Restart from Line 1"
             >
-              <span>ðŸ”„ Restart</span>
+              <span>🔄 Restart</span>
             </button>
             <button
               onClick={handleStop}
               disabled={!isPlaying && !isPaused}
               className="px-3.5 py-2.5 bg-gray-800 hover:bg-red-900/60 text-gray-300 hover:text-red-300 font-bold rounded-xl text-xs transition-all cursor-pointer"
             >
-              â¹ Stop
+               Stop
             </button>
           </div>
 
@@ -315,7 +315,7 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
                 onClick={handlePause}
                 className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer active:scale-95"
               >
-                â¸ Pause Narration
+                 Pause Narration
               </button>
             ) : (
               <button
@@ -323,7 +323,7 @@ export const LyricsTTSPlayer: React.FC<LyricsTTSPlayerProps> = ({
                 disabled={lines.length === 0}
                 className="px-7 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg cursor-pointer active:scale-95 flex items-center gap-2"
               >
-                <span>â–¶ {isPaused ? "Resume Narration" : "Hear Lyrics (TTS)"}</span>
+                <span>▶ {isPaused ? "Resume Narration" : "Hear Lyrics (TTS)"}</span>
               </button>
             )}
           </div>

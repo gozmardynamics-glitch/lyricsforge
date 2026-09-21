@@ -141,14 +141,14 @@ const LyricSheetExportModal: React.FC<LyricSheetExportModalProps> = ({
               Print-Ready Export Suite
             </span>
             <h3 className={`text-xl font-black mt-1 ${highContrastPrint ? 'text-black' : 'text-white'}`}>
-              ðŸŽ¼ Lyric Sheet & Lead Sheet Studio
+              🎼 Lyric Sheet & Lead Sheet Studio
             </h3>
           </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-200 text-lg p-2 rounded-full hover:bg-gray-800 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -159,9 +159,9 @@ const LyricSheetExportModal: React.FC<LyricSheetExportModalProps> = ({
           {/* Format Tabs */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'clean', label: 'ðŸ“ Clean Lyric Sheet', desc: 'Vocalist & Performer View' },
-              { id: 'chords', label: 'ðŸŽ¸ Chord & Lead Sheet', desc: 'Chords & Bar Structure' },
-              { id: 'producer', label: 'ðŸŽ›ï¸ Producer Cue Sheet', desc: 'Arrangement & BPM' }
+              { id: 'clean', label: ' Clean Lyric Sheet', desc: 'Vocalist & Performer View' },
+              { id: 'chords', label: '🎸 Chord & Lead Sheet', desc: 'Chords & Bar Structure' },
+              { id: 'producer', label: '🎛 Producer Cue Sheet', desc: 'Arrangement & BPM' }
             ].map((f) => (
               <button
                 key={f.id}
@@ -253,10 +253,10 @@ const LyricSheetExportModal: React.FC<LyricSheetExportModalProps> = ({
                 </span>
               </div>
               <p className="text-xs opacity-75">
-                Occasion: <strong>{activeOccasion}</strong> â€¢ Mood: <strong>{activeMood}</strong> â€¢ Language: <strong>{activeLanguage}</strong>
+                Occasion: <strong>{activeOccasion}</strong> • Mood: <strong>{activeMood}</strong> • Language: <strong>{activeLanguage}</strong>
               </p>
               <p className="text-xs opacity-75">
-                Tempo: <strong>{estimatedBpm} BPM</strong> â€¢ Key: <strong>{musicalKey}</strong>
+                Tempo: <strong>{estimatedBpm} BPM</strong> • Key: <strong>{musicalKey}</strong>
               </p>
             </div>
           )}
@@ -276,25 +276,25 @@ const LyricSheetExportModal: React.FC<LyricSheetExportModalProps> = ({
               onClick={handleDownloadPdf}
               className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
             >
-              <span>ðŸ“„ Download PDF</span>
+              <span>📄 Download PDF</span>
             </button>
             <button
               onClick={() => handleDownloadFile('txt')}
               className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all shadow-sm cursor-pointer"
             >
-              ðŸ“¥ Download TXT
+              📥 Download TXT
             </button>
             <button
               onClick={() => handleDownloadFile('md')}
               className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all shadow-sm cursor-pointer"
             >
-              ðŸ“„ Download Markdown
+              📄 Download Markdown
             </button>
             <button
               onClick={() => handleDownloadFile('json')}
               className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all shadow-sm cursor-pointer"
             >
-              ðŸ’¾ Download JSON
+              💾 Download JSON
             </button>
           </div>
 
@@ -303,13 +303,13 @@ const LyricSheetExportModal: React.FC<LyricSheetExportModalProps> = ({
               onClick={handleCopySheet}
               className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-teal-300 font-bold rounded-xl text-xs transition-all border border-teal-500/30 cursor-pointer"
             >
-              {copied ? "Copied Formatted Sheet!" : "ðŸ“‹ Copy Formatted Sheet"}
+              {copied ? "Copied Formatted Sheet!" : "📋 Copy Formatted Sheet"}
             </button>
             <button
               onClick={handlePrint}
               className="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg active:scale-95 cursor-pointer"
             >
-              ðŸ–¨ï¸ Print Sheet View
+              🖨 Print Sheet View
             </button>
           </div>
         </div>

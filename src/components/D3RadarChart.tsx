@@ -133,7 +133,7 @@ const D3RadarChart: React.FC<D3RadarChartProps> = ({ data, selectedMood, onSelec
     <div className="flex flex-col items-center justify-center p-2 bg-gray-900/90 rounded-2xl border border-gray-700/80">
       <div className="flex items-center justify-between w-full px-2 mb-1">
         <span className="text-[11px] font-bold text-teal-400 uppercase tracking-wider">
-          ðŸ“Š Interactive Mood Distribution Radar
+          📊 Interactive Mood Distribution Radar
         </span>
         {selectedMood && (
           <button
@@ -146,7 +146,7 @@ const D3RadarChart: React.FC<D3RadarChartProps> = ({ data, selectedMood, onSelec
       </div>
       <svg ref={svgRef}></svg>
       <p className="text-[10px] text-gray-400 italic text-center mt-1">
-        ðŸ’¡ Click on any mood axis or point to filter songs by emotional sentiment
+        💡 Click on any mood axis or point to filter songs by emotional sentiment
       </p>
     </div>
   );

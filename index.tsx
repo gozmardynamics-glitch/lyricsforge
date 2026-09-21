@@ -59,14 +59,28 @@ const AlbumSongsLibraryView = React.lazy(() => import('./src/components/AlbumSon
 const AutonomousViralityAgentStudio = React.lazy(() => import('./src/components/AutonomousViralityAgentStudio'));
 const LyricsDisplay = React.lazy(() => import('./src/components/LyricsDisplay'));
 import { generateLyricsPdf } from './src/components/generateLyricsPdf';
+import SongVersionStudio from './src/components/SongVersionStudio';
 import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOODS, DEFAULT_STYLE_PRESETS } from './src/constants';
+import { generateProceduralLyricVersions, parseSongContextFromPrompt } from './src/agents/proceduralLyrics';
+import { generateThreeLyricVersions } from './src/agents/generateThreeLyricVersions';
 
 import {
   executeUniversalLLMCall,
   getStoredLLMModels,
   getActiveModelId,
-  setActiveModelId
+  setActiveModelId,
+  modelProviderReady,
+  listProvidersNeedingKeys
 } from './src/agents/llmRegistry';
+import {
+  registerAbortJob,
+  completeAbortJob,
+  killAllJobs,
+  runWithConcurrency,
+  getActiveJobs,
+  subscribeAbortSupervisor,
+  type SupervisedJob
+} from './src/agents/abortSupervisor';
 import { ai } from './src/aiShim';
 
 // callUniversalAI / ai moved to src/aiShim.ts
@@ -141,7 +155,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
           <span className="text-xs bg-gray-700 text-gray-300 px-2.5 py-1 rounded-md hidden sm:block font-medium">{song.genre}</span>
           <span className="text-xs bg-teal-950/80 text-teal-300 border border-teal-500/40 px-2 py-0.5 rounded hidden md:block">{song.rhymeScheme || "ABAB"}</span>
           <button className="text-teal-400 text-2xl font-light w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-700 transition-colors">
-            {isExpanded ? 'âˆ’' : '+'}
+            {isExpanded ? '−' : '+'}
           </button>
         </div>
       </div>
@@ -172,7 +186,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                     : "bg-gray-700 hover:bg-gray-600 text-teal-300 border border-gray-600"
                 }`}
               >
-                âš¡ Suggest Viral Title
+                ⚡ Suggest Viral Title
               </button>
             </div>
           </div>
@@ -186,7 +200,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                   onClick={() => setIsGenreAnalyzerOpen(true)}
                   className="text-[10px] text-teal-300 hover:text-teal-200 font-bold underline transition-colors cursor-pointer"
                 >
-                  ðŸ” Analyze DNA
+                   Analyze DNA
                 </button>
               </div>
               <select name="genre" value={song.genre} onChange={handleChange} className="w-full bg-gray-700/80 text-white p-2.5 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm">
@@ -225,10 +239,10 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
 
           {/* Style Reference Inputs (YouTube, Song Title, Artist) */}
           <div className="bg-gray-900/60 p-3.5 rounded-xl border border-gray-700/80 space-y-3">
-            <span className="text-[11px] font-bold text-teal-400 uppercase tracking-wider block">ðŸŽ¨ Style Reference Inputs (Guide Cadence, Vocal Flow & Delivery)</span>
+            <span className="text-[11px] font-bold text-teal-400 uppercase tracking-wider block">🎨 Style Reference Inputs (Guide Cadence, Vocal Flow & Delivery)</span>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
               <div>
-                <label className="block text-[10px] font-medium text-gray-300 mb-1">ðŸŽ¥ YouTube Reference Link</label>
+                <label className="block text-[10px] font-medium text-gray-300 mb-1">🎥 YouTube Reference Link</label>
                 <input
                   type="url"
                   name="youtubeStyleLink"
@@ -239,7 +253,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-gray-300 mb-1">ðŸŽµ Song Title to Style From</label>
+                <label className="block text-[10px] font-medium text-gray-300 mb-1">🎵 Song Title to Style From</label>
                 <input
                   type="text"
                   name="referenceSongTitle"
@@ -250,7 +264,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-gray-300 mb-1">ðŸŽ¤ Artist Style Reference</label>
+                <label className="block text-[10px] font-medium text-gray-300 mb-1">🎤 Artist Style Reference</label>
                 <input
                   type="text"
                   name="artistStyleName"
@@ -274,7 +288,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                   className="text-xs bg-amber-950/80 hover:bg-amber-900 text-amber-300 px-3 py-1.5 rounded-lg border border-amber-500/40 font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                   title="Generate thematic hooks and opening lines tailored to this genre"
                 >
-                  <span>ðŸ’¡ Overcome Writer's Block (Hook)</span>
+                  <span>💡 Overcome Writer's Block (Hook)</span>
                 </button>
 
                 <button 
@@ -283,7 +297,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                   className="text-xs bg-pink-950/80 hover:bg-pink-900 text-pink-300 px-3 py-1.5 rounded-lg border border-pink-500/40 font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                   title="Generate custom AI vinyl cover art for this track"
                 >
-                  <span>ðŸŽ¨ AI Artwork</span>
+                  <span>🎨 AI Artwork</span>
                 </button>
 
                 <button 
@@ -292,7 +306,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                   className="text-xs bg-teal-950/80 hover:bg-teal-900 text-teal-300 px-3 py-1.5 rounded-lg border border-teal-500/40 font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                   title="Explore genre melody motifs, scale ladders, pitch contours & AI vocal arranger"
                 >
-                  <span>ðŸŽµ Melody & Motifs</span>
+                  <span>🎵 Melody & Motifs</span>
                 </button>
               </div>
 
@@ -345,7 +359,7 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
                 className="px-3.5 py-2.5 bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/40 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                 title="Open live multi-user co-writing room"
               >
-                <span>ðŸ‘¥ Live Co-Write</span>
+                <span>👥 Live Co-Write</span>
               </button>
             </div>
 
@@ -359,7 +373,16 @@ const SongConfigurationCard: React.FC<SongConfigurationCardProps> = ({
               {song.isApproved ? 'Unapprove Song' : 'Approve Song'}
             </button>
           </div>
-          
+
+          {/* 3-Version picker + lyric editor (function buttons + edit workspace) */}
+          <SongVersionStudio
+            song={song}
+            onUpdate={onUpdate}
+            onGenerateVersions={onGenerateLyrics}
+            isLoading={isLoading}
+            layout="cards"
+          />
+
           {song.lyrics && song.lyrics.length > 0 && (
             <React.Suspense fallback={null}>
               <LyricsDisplay
@@ -484,6 +507,11 @@ import { exportAlbumToFile, exportSongsToFile } from './src/components/exportUti
 const App = () => {
     const [activeTab, setActiveTab] = useState<'theme' | 'agent' | 'album' | 'albumSongs' | 'library' | 'templates' | 'agents'>('theme');
     const [selectedGlobalModelId, setSelectedGlobalModelId] = useState<string>(() => getActiveModelId());
+    const [registryModels, setRegistryModels] = useState(() => getStoredLLMModels());
+    const [activeJobCount, setActiveJobCount] = useState(0);
+    const bulkAbortRef = useRef<AbortController | null>(null);
+    const [bulkRunning, setBulkRunning] = useState(false);
+    const bulkJobIdRef = useRef<string | null>(null);
     const [isApiModalOpen, setIsApiModalOpen] = useState(false);
     const [currentStep, setCurrentStep] = useState(1);
     const [album, setAlbum] = useState<Album | null>(null);
@@ -519,6 +547,24 @@ const App = () => {
         exportFormat: 'txt'
       };
     });
+
+    // Global agent/job supervisor subscription + registry refresh
+    useEffect(() => {
+        const unsub = subscribeAbortSupervisor((jobs: SupervisedJob[]) => setActiveJobCount(jobs.length));
+        setRegistryModels(getStoredLLMModels());
+        return unsub;
+    }, [selectedGlobalModelId, isSettingsOpen]);
+
+    const handleKillAllJobs = () => {
+        bulkAbortRef.current?.abort();
+        bulkGeneratingRef.current = false;
+        setBulkRunning(false);
+        const n = killAllJobs();
+        setIsLoading(false);
+        alert(n > 0
+            ? `Kill-switch engaged — aborted ${n} active agent/generation job(s).`
+            : "Kill-switch engaged — no active agent jobs were running.");
+    };
 
     // Apply light-theme class to body
     useEffect(() => {
@@ -867,11 +913,12 @@ const App = () => {
       }
     }, []);
     
-    const handleAlbumCreation = async (formData: Omit<Album, 'id' | 'songs'>) => {
+    const handleAlbumCreation = async (formData: Omit<Album, 'id' | 'songs'> & { language?: string }) => {
         setIsLoading(true);
         setLoadingMessage("Reviewing album concept & automating viral song titles + track fields...");
 
         const modelId = getActiveModelId();
+        const languageName = LANGUAGES.find(l => l.code === (formData.language || 'en'))?.name || 'English';
         const prompt = `You are a legendary creative record producer and album A&R.
 Review this album concept and generate a complete, review-ready tracklist package.
 
@@ -879,19 +926,27 @@ Album Title: "${formData.name}"
 Album Occasion / Theme: ${formData.occasion}
 Album Description / Comments: "${formData.comments}"
 Number of Songs Requested: ${formData.songCount}
-User-selected genres (if any): ${formData.genres.join(', ') || '(none — you choose)'}
+User-selected genres (if any): ${formData.genres.join(', ') || '(none  you choose)'}
+Target language for ALL titles, mood labels, customIdeas, and titleRationale: ${languageName}
+
+LANGUAGE RULES:
+- Song "title" MUST be written in ${languageName} (complete, viral, theme-connected).
+- "customIdeas" and "titleRationale" MUST be in ${languageName}.
+- "mood" may use short ${languageName} phrases.
+- Genre, structure section names, and musicKey may stay in standard music English (e.g. Verse - Chorus, C Major).
+- If ${languageName} is not English, keep titles natural for that market  do not force English wordplay unless it fits.
 
 For EACH of the ${formData.songCount} tracks return:
-1. "title" — viral, catchy, complete song title that rhymes with or plays on the album title/theme
-2. "genre" — one genre from: ${GENRES.join(', ')}
-3. "mood" — atmospheric mood (e.g. Euphoric & Festival, Melancholic & Reflective)
-4. "structure" — song section map (e.g. Verse - Pre-Chorus - Chorus - Verse - Chorus - Bridge - Chorus)
-5. "rhymeScheme" — e.g. AABB (Couplets), ABAB (Alternate Rhyme), ABCB (Ballad Stanza)
-6. "musicKey" — suggested key (e.g. C Major, F# Minor)
-7. "customIdeas" — one-sentence story/hook seed (under 14 words) for lyric generation
-8. "titleRationale" — one short sentence on why this title fits the album narrative
+1. "title"  viral, catchy, complete song title in ${languageName} that rhymes with or plays on the album title/theme
+2. "genre"  one genre from: ${GENRES.join(', ')}
+3. "mood"  atmospheric mood
+4. "structure"  song section map (e.g. Verse - Pre-Chorus - Chorus - Verse - Chorus - Bridge - Chorus)
+5. "rhymeScheme"  e.g. AABB (Couplets), ABAB (Alternate Rhyme), ABCB (Ballad Stanza)
+6. "musicKey"  suggested key (e.g. C Major, F# Minor)
+7. "customIdeas"  one-sentence story/hook seed (under 14 words) in ${languageName}
+8. "titleRationale"  one short sentence in ${languageName} on why this title fits the album narrative
 
-Also return "albumGenres" — 2-4 genres that fit the full album arc.
+Also return "albumGenres"  2-4 genres that fit the full album arc.
 Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
 
         try {
@@ -947,6 +1002,7 @@ Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
                     structure: t.structure || 'Verse - Chorus - Verse - Chorus - Bridge - Chorus',
                     musicKey: t.musicKey || 'C Major',
                     titleRationale: t.titleRationale || '',
+                    language: formData.language || 'en',
                     tags: ['ai-title-automation', 'pending-review'],
                     lyrics: [],
                     isApproved: false,
@@ -955,6 +1011,7 @@ Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
 
             setAlbum({
                 ...formData,
+                language: formData.language || 'en',
                 id: `album-${Date.now()}`,
                 genres: combinedGenres.length > 0 ? combinedGenres : formData.genres,
                 songs: newSongs,
@@ -972,11 +1029,13 @@ Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
                 customIdeas: '',
                 mood: 'Melancholic & Reflective',
                 structure: 'Verse - Chorus - Verse - Chorus - Bridge - Chorus',
+                language: formData.language || 'en',
                 lyrics: [],
                 isApproved: false,
             }));
             setAlbum({
                 ...formData,
+                language: formData.language || 'en',
                 id: `album-${Date.now()}`,
                 genres: formData.genres.length > 0 ? formData.genres : [GENRES[0]],
                 songs: newSongs,
@@ -997,9 +1056,11 @@ Return ONLY valid JSON matching the schema. Do not invent extra tracks.`;
         if (!album) return;
 
         setIsLoading(true);
-        setLoadingMessage(`Automating titles & track fields for "${album.name}"…`);
+        setLoadingMessage(`Automating titles & track fields for "${album.name}"`);
 
         const modelId = getActiveModelId();
+        const albumLanguage = album.language || 'en';
+        const languageName = LANGUAGES.find(l => l.code === albumLanguage)?.name || 'English';
         const existingTitles = album.songs.map(s => s.title).filter(Boolean).join('; ');
         const prompt = `You are an album A&R automation engine.
 Using ONLY this album context, generate a complete review-ready tracklist.
@@ -1009,17 +1070,23 @@ Occasion / Theme: ${album.occasion}
 Story / Comments: "${album.comments}"
 Track count: ${album.songs.length}
 Preferred genres: ${album.genres.join(', ') || '(choose fitting genres)'}
-Current titles (may be placeholders — replace with stronger viral titles when useful): ${existingTitles || '(none)'}
+Current titles (may be placeholders  replace with stronger viral titles when useful): ${existingTitles || '(none)'}
+Target language for titles, customIdeas, titleRationale, and mood phrases: ${languageName}
+
+LANGUAGE RULES:
+- Write "title", "customIdeas", and "titleRationale" in ${languageName}.
+- Genre/structure/musicKey stay in standard music English.
+- If ${languageName} is not English, use natural market-native titles  do not force English.
 
 For EACH track index 1..${album.songs.length} produce a full package:
-- title (complete, viral, theme-connected)
+- title (complete, viral, theme-connected, in ${languageName})
 - genre
 - mood
 - structure
 - rhymeScheme
 - musicKey
-- customIdeas (lyric seed, ≤14 words)
-- titleRationale (why it belongs on this album)
+- customIdeas (lyric seed, 14 words, in ${languageName})
+- titleRationale (why it belongs on this album, in ${languageName})
 
 Return JSON: { "albumGenres": string[], "tracks": [...] } with exactly ${album.songs.length} tracks.`;
 
@@ -1080,6 +1147,7 @@ Return JSON: { "albumGenres": string[], "tracks": [...] } with exactly ${album.s
                     musicKey: t.musicKey || song.musicKey || 'C Major',
                     customIdeas: t.customIdeas || song.customIdeas,
                     titleRationale: t.titleRationale || song.titleRationale || '',
+                    language: albumLanguage,
                     tags: [...new Set([...(song.tags || []).filter((tg: string) => tg !== 'pending-review'), 'ai-title-automation', 'pending-review'])],
                     isApproved: false,
                 };
@@ -1101,7 +1169,7 @@ Return JSON: { "albumGenres": string[], "tracks": [...] } with exactly ${album.s
         }
     };
 
-    /** Mark AI-generated tracklist as reviewed — clear pending flags, keep user edits. */
+    /** Mark AI-generated tracklist as reviewed  clear pending flags, keep user edits. */
     const handleMarkTitlesReviewed = () => {
         if (!album) return;
         const songs = album.songs.map(s => ({
@@ -1129,6 +1197,8 @@ Return JSON: { "albumGenres": string[], "tracks": [...] } with exactly ${album.s
         setLoadingMessage(`Reviewing "${album.name}" to generate viral rhyming song titles...`);
 
         const modelId = getActiveModelId();
+        const albumLanguage = album.language || 'en';
+        const languageName = LANGUAGES.find(l => l.code === albumLanguage)?.name || 'English';
         const prompt = `You are a viral music branding consultant.
 Review this album concept and suggest new viral, catchy song titles for each track that cleverly rhyme or play on words with the album title and theme.
 
@@ -1136,8 +1206,9 @@ Album Title: "${album.name}"
 Album Theme / Occasion: ${album.occasion}
 Album Description / Comments: "${album.comments}"
 Number of Tracks: ${album.songs.length}
+Title language: ${languageName}
 
-Generate ${album.songs.length} viral, rhyming, catchy song titles.
+Generate ${album.songs.length} viral, rhyming, catchy song titles in ${languageName}.
 Adhere strictly to JSON schema: {"viralSongTitles": ["Title 1", "Title 2", ...]}
 `;
 
@@ -1178,6 +1249,7 @@ Adhere strictly to JSON schema: {"viralSongTitles": ["Title 1", "Title 2", ...]}
                 const updatedSongs = album.songs.map((song, i) => ({
                     ...song,
                     title: titles[i] || song.title,
+                    language: album.language || song.language || 'en',
                     tags: [...new Set([...(song.tags || []).filter((tg: string) => tg !== 'pending-review'), 'pending-review'])]
                 }));
                 handleUpdateAlbum({ songs: updatedSongs, titlesReadyForReview: true, titlesGeneratedAt: Date.now() });
@@ -1226,7 +1298,7 @@ Return ONLY the plain song title text. Do NOT include markdown bolding, quotes, 
             if (cleanTitle.length > 0) {
                 handleUpdateSong(songId, { title: cleanTitle });
             } else {
-                alert("AI returned an empty response. Please try clicking '⚡ Suggest Viral Title' again.");
+                alert("AI returned an empty response. Please try clicking ' Suggest Viral Title' again.");
             }
         } catch (error) {
             console.error("Error regenerating title:", error);
@@ -1236,101 +1308,139 @@ Return ONLY the plain song title text. Do NOT include markdown bolding, quotes, 
         }
     };
 
+    const bulkGeneratingRef = useRef(false);
+
+    /** Core generation — always produces 3 lyric versions for one track. */
+    const generateLyricVersionsForSong = useCallback(async (songId: string) => {
+        if (!album) return;
+        const song = album.songs.find(s => s.id === songId);
+        if (!song) return;
+
+        const activePreset = stylePresets.find(p => p.id === song.stylePresetId);
+        const songLangCode = song.language || album.language || 'en';
+        const songLangName = LANGUAGES.find(l => l.code === songLangCode)?.name || 'English';
+
+        // Shared Album Studio pipeline — always produces 3 versions (live LLM or procedural)
+        const result = await generateThreeLyricVersions({
+            title: song.title,
+            genre: song.genre,
+            mood: song.mood,
+            albumName: album.name,
+            occasion: album.occasion,
+            albumComments: album.comments,
+            customIdeas: song.customIdeas,
+            structure: song.structure,
+            rhymeScheme: song.rhymeScheme,
+            language: songLangCode,
+            modelId: getActiveModelId(),
+            signal: bulkAbortRef.current?.signal,
+            stylePresetNote: activePreset
+                ? `Lyric Style Reference Preset: "${activePreset.name}" - ${activePreset.description}. Cadence: ${activePreset.cadenceAndMeter}. Rhyme Density: ${activePreset.rhymeDensity}.`
+                : undefined,
+        }, songLangName);
+
+        const versions = result.versions;
+        if (result.usedFallback) {
+            console.warn(`Lyric generation fallback for "${song.title}":`, result.fallbackReason);
+        }
+
+        handleUpdateSong(songId, { lyrics: versions, activeLyricVersion: 0 });
+        return { versions, usedFallback: result.usedFallback, fallbackReason: result.fallbackReason };
+    }, [album, stylePresets, handleUpdateSong]);
+
     const handleGenerateLyrics = async (songId: string) => {
         if (!album) return;
         const song = album.songs.find(s => s.id === songId);
         if (!song) return;
-    
-        setIsLoading(true);
-        setLoadingMessage(`Generating lyric versions for "${song.title}" (${song.rhymeScheme || 'ABAB'})...`);
-    
-        const activePreset = stylePresets.find(p => p.id === song.stylePresetId);
-        let presetPrompt = "";
-        if (activePreset) {
-          presetPrompt = `Lyric Style Reference Preset: "${activePreset.name}" - ${activePreset.description}. Cadence: ${activePreset.cadenceAndMeter}. Rhyme Density: ${activePreset.rhymeDensity}.`;
+
+        if (!bulkGeneratingRef.current) {
+            setIsLoading(true);
+            setLoadingMessage(`Generating lyric versions for "${song.title}" (${song.rhymeScheme || 'ABAB'})...`);
         }
 
-        const prompt = `You are an expert hitmaker lyricist. Write lyrics for a song with the following details.
-
-Album Name: "${album.name}"
-Album Occasion/Theme: ${album.occasion} (${album.comments})
-
-Song Title: "${song.title}"
-Song Genre: ${song.genre}
-Rhyme Scheme Requirement: Strictly follow ${song.rhymeScheme || 'ABAB (Alternate Rhyme)'} rhyme scheme for stanzas.
-Emotional Mood/Vibe: ${song.mood}
-Desired Structure: ${song.structure}
-Key Ideas/Keywords from user: "${song.customIdeas}"
-${presetPrompt}
-
-Instructions:
-1. Generate THREE distinct versions of the lyrics for this song.
-2. Follow the requested ${song.rhymeScheme || 'ABAB'} rhyme scheme for verses and choruses.
-3. Incorporate the requested emotional tone "${song.mood}".
-4. Format section headers in markdown like [Verse 1], [Chorus], [Bridge], [Outro].
-5. Adhere strictly to JSON schema: {"lyricVersions": [["Line 1", "Line 2"], ["Version 2 Line 1"], ["Version 3 Line 1"]]}
-`;
-    
         try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-3.6-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            lyricVersions: {
-                                description: "An array containing distinct lyric versions (each version is an array of line strings).",
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.ARRAY,
-                                    items: { type: Type.STRING }
-                                }
-                            }
-                        },
-                        required: ["lyricVersions"]
-                    }
+            const genResult = await generateLyricVersionsForSong(songId);
+            if (!bulkGeneratingRef.current) {
+                if (genResult?.usedFallback) {
+                    alert(`Stored 3 lyric versions for "${song.title}" (offline procedural engine).\nReason: ${genResult.fallbackReason || "No live LLM provider available"}.\n\nOpen Song Version Studio to review/edit V1, V2, V3.\nConfigure an API key in Settings for live AI lyrics.`);
+                } else {
+                    alert(`Generated 3 live lyric versions for "${song.title}". Open Song Version Studio to review V1/V2/V3.`);
                 }
-            });
-            
-            const result = safeExtractJSON(response.text, {} as any);
-            let versions: string[][] = [];
-
-            if (Array.isArray(result.lyricVersions) && result.lyricVersions.length > 0) {
-                versions = result.lyricVersions.map((v: any) => {
-                    if (Array.isArray(v)) {
-                        return v.map(line => String(line));
-                    }
-                    if (typeof v === "string") {
-                        return v.split("\n");
-                    }
-                    return [];
-                }).filter((v: string[]) => v.length > 0);
-            }
-
-            // Fallback: if JSON parsing/extraction returned no versions array, parse raw text into lines
-            if (versions.length === 0 && response.text) {
-                const textWithoutHeader = response.text.includes("\n\n") && response.text.startsWith("[PROCEDURAL")
-                    ? response.text.substring(response.text.indexOf("\n\n") + 2).trim()
-                    : response.text.trim();
-                const lines = textWithoutHeader.split("\n");
-                if (lines.length > 0) {
-                    versions = [lines];
-                }
-            }
-
-            if (versions.length > 0) {
-                handleUpdateSong(songId, { lyrics: versions });
-            } else {
-                alert("The AI response did not contain usable lyrics. Please verify your model API settings in Settings.");
             }
         } catch (error) {
             console.error("Error generating lyrics:", error);
-            alert("Sorry, there was an error generating lyrics. Please try again or test your AI provider in Settings.");
+            // Always leave the song with 3 editable versions so the studio is usable
+            const fallback = generateProceduralLyricVersions({
+                title: song.title,
+                genre: song.genre,
+                mood: song.mood,
+                customIdeas: song.customIdeas,
+                albumName: album.name,
+                occasion: album.occasion,
+                structure: song.structure,
+            }, 3);
+            handleUpdateSong(songId, { lyrics: fallback, activeLyricVersion: 0 });
+            if (!bulkGeneratingRef.current) {
+                alert("LLM generation failed — stored 3 offline procedural versions instead. Configure an API key in Settings for live AI lyrics.");
+            }
         } finally {
+            if (!bulkGeneratingRef.current) {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    /** Generate 3 lyric versions for every track — parallel (concurrency 3) with kill-switch. */
+    const handleGenerateAllLyricVersions = useCallback(async () => {
+        if (!album || album.songs.length === 0) return;
+        bulkGeneratingRef.current = true;
+        setBulkRunning(true);
+        setIsLoading(true);
+        const abort = new AbortController();
+        bulkAbortRef.current = abort;
+        const job = registerAbortJob("bulk-lyrics", `Bulk 3-version gen — ${album.name}`, abort);
+        bulkJobIdRef.current = job.id;
+
+        const tracks = album.songs.map(s => ({ id: s.id, title: s.title }));
+        let done = 0;
+        const total = tracks.length;
+        try {
+            const { completed, aborted } = await runWithConcurrency(
+                tracks,
+                async (track) => {
+                    if (abort.signal.aborted) return null;
+                    done += 1;
+                    setLoadingMessage(`Generating 3 lyric versions for "${track.title || "Untitled"}" (${done}/${total}, parallel ×3)...`);
+                    await generateLyricVersionsForSong(track.id);
+                    return track.id;
+                },
+                3,
+                abort.signal
+            );
+            if (aborted || abort.signal.aborted) {
+                alert(`Bulk generation stopped. ${completed}/${total} tracks processed before kill-switch/abort.`);
+            } else {
+                alert(`Finished generating 3 lyric versions for ${total} tracks (parallel ×3) via the Album Studio pipeline.\n\nOpen Album Songs Studio → Song Version Studio on any track to review V1/V2/V3.`);
+            }
+        } catch (e) {
+            console.error("Bulk lyric version generation error:", e);
+            alert("Bulk generation hit an error. Check the console; individual track generation still works.");
+        } finally {
+            bulkGeneratingRef.current = false;
+            setBulkRunning(false);
+            completeAbortJob(job.id);
+            bulkAbortRef.current = null;
+            bulkJobIdRef.current = null;
             setIsLoading(false);
         }
+    }, [album, generateLyricVersionsForSong]);
+
+    const handleStopBulkGeneration = () => {
+        bulkAbortRef.current?.abort();
+        if (bulkJobIdRef.current) completeAbortJob(bulkJobIdRef.current);
+        bulkGeneratingRef.current = false;
+        setBulkRunning(false);
+        setIsLoading(false);
     };
 
     const handleApproveSong = (songId: string) => {
@@ -1396,7 +1506,7 @@ Instructions:
                 const songId = album.songs[0].id;
                 handleUpdateSong(songId, {
                   title: update.title || album.songs[0].title,
-                  // Song.lyrics is string[][] — one wrap per version
+                  // Song.lyrics is string[][]  one wrap per version
                   lyrics: update.lyricsText ? [update.lyricsText.split('\n')] : album.songs[0].lyrics,
                   genre: update.genre || album.songs[0].genre,
                   mood: update.mood || album.songs[0].mood,
@@ -1433,7 +1543,7 @@ Instructions:
                     <div className="flex items-center justify-between w-full xl:w-auto">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-gray-900 font-bold text-xl shadow-lg">
-                                ðŸŽµ
+                                🎵
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
@@ -1456,14 +1566,14 @@ Instructions:
                                 className="p-2 rounded-xl bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer"
                                 title="Digital Metronome"
                             >
-                                â±ï¸
+                                
                             </button>
                             <button
                                 onClick={() => setIsVersionHistoryOpen(true)}
                                 className="p-2 rounded-xl bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer relative"
                                 title="Lyrics Version History"
                             >
-                                ðŸ•’
+                                🕒
                                 {versionHistory.length > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-teal-500 text-gray-950 text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
                                         {versionHistory.length}
@@ -1478,21 +1588,21 @@ Instructions:
                                 className="p-2 rounded-xl bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-500/40 text-xs font-bold transition-all cursor-pointer"
                                 title="Vocalize Lyrics (TTS)"
                             >
-                                ðŸ”Š
+                                🔊
                             </button>
                             <button
                                 onClick={() => handleToggleTheme(themeMode === 'dark' ? 'light' : 'dark')}
                                 className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-teal-300 border border-gray-700 text-xs font-bold transition-all cursor-pointer"
                                 title={`Switch to ${themeMode === 'dark' ? 'High Contrast Light Mode' : 'Dark Studio Mode'}`}
                             >
-                                {themeMode === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
+                                {themeMode === 'dark' ? '☀' : '🌙'}
                             </button>
                             <button
                                 onClick={() => setIsSettingsOpen(true)}
                                 className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-xs font-bold transition-all cursor-pointer"
                                 title="Settings"
                             >
-                                âš™ï¸
+                                ⚙
                             </button>
                         </div>
                     </div>
@@ -1508,7 +1618,7 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>âœ¨ Quick Theme</span>
+                            <span>✨ Quick Theme</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('agent')}
@@ -1519,7 +1629,7 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>ðŸš€ Virality Agent</span>
+                            <span>🚀 Virality Agent</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('album')}
@@ -1530,7 +1640,7 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>ðŸ’¿ Album Studio</span>
+                            <span>💿 Album Studio</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('albumSongs')}
@@ -1541,7 +1651,7 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>ðŸŽµ Album Songs ({album?.songs?.length || 0})</span>
+                            <span>🎵 Album Songs ({album?.songs?.length || 0})</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('library')}
@@ -1552,7 +1662,7 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>ðŸ“š Library & Analytics</span>
+                            <span>📚 Library & Analytics</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('templates')}
@@ -1563,18 +1673,18 @@ Instructions:
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>🎨 Style Templates</span>
+                            <span> Style Templates</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('agents')}
-                            title="Agent Management: View all agents, descriptions, skills and tools — edit or create specialists"
+                            title="Agent Management: View all agents, descriptions, skills and tools  edit or create specialists"
                             className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                                 activeTab === 'agents'
                                     ? "bg-teal-600 text-white shadow-sm"
                                     : "text-gray-400 hover:text-white"
                             }`}
                         >
-                            <span>👥 Agents</span>
+                            <span> Agents</span>
                         </button>
                     </div>
 
@@ -1586,7 +1696,7 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-teal-300 hover:text-white bg-teal-950/80 hover:bg-teal-900 border border-teal-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                             title="Open interactive Digital Metronome overlay"
                         >
-                            <span>â±ï¸ Metronome</span>
+                            <span> Metronome</span>
                         </button>
 
                         {/* Melody & Scale Motif Guide */}
@@ -1595,7 +1705,7 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-teal-300 hover:text-white bg-teal-950/80 hover:bg-teal-900 border border-teal-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                             title="Open Genre Melody Motifs & Scale Guidance Studio"
                         >
-                            <span>ðŸŽµ Melody Guide</span>
+                            <span>🎵 Melody Guide</span>
                         </button>
 
                         {/* Version History Tool */}
@@ -1604,7 +1714,7 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-indigo-300 hover:text-white bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 relative"
                             title="View past lyrics drafts and 1-click revert"
                         >
-                            <span>ðŸ•’ Drafts ({versionHistory.length})</span>
+                            <span>🕒 Drafts ({versionHistory.length})</span>
                             {versionHistory.length > 0 && (
                                 <span className="w-2 h-2 rounded-full bg-teal-400"></span>
                             )}
@@ -1623,7 +1733,7 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-purple-300 hover:text-white bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                             title="Narrate lyrics aloud with voice synthesis"
                         >
-                            <span>ðŸ”Š Voice (TTS)</span>
+                            <span>🔊 Voice (TTS)</span>
                         </button>
 
                         {/* Theme Toggle Button */}
@@ -1632,7 +1742,7 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-teal-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-all flex items-center gap-1.5 cursor-pointer"
                             title={`Switch to ${themeMode === 'dark' ? 'High Contrast Light Mode' : 'Dark Studio Mode'}`}
                         >
-                            <span>{themeMode === 'dark' ? 'â˜€ï¸ Light Mode' : 'ðŸŒ™ Dark Mode'}</span>
+                            <span>{themeMode === 'dark' ? '☀ Light Mode' : '🌙 Dark Mode'}</span>
                         </button>
 
                         {/* Settings Button */}
@@ -1641,29 +1751,83 @@ Instructions:
                             className="px-3 py-2 text-xs font-bold rounded-xl text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-all flex items-center gap-1.5 cursor-pointer"
                             title="Settings & Preferences"
                         >
-                            <span>âš™ï¸ Settings</span>
+                            <span>⚙ Settings</span>
                         </button>
 
-                        {/* Global Model Selector Dropdown */}
-                        <div className="flex items-center gap-1.5 bg-gray-900 border border-teal-500/40 px-2.5 py-1.5 rounded-xl text-xs">
-                            <span className="text-teal-400 font-bold">ðŸ§  Model:</span>
-                            <select
-                                value={selectedGlobalModelId}
-                                onChange={(e) => {
-                                    const newId = e.target.value;
-                                    setSelectedGlobalModelId(newId);
-                                    setActiveModelId(newId);
-                                }}
-                                className="bg-gray-800 text-white text-xs rounded-lg px-2 py-1 border border-gray-700 focus:outline-none focus:border-teal-400 cursor-pointer font-medium"
-                                title="Switch active LLM model (Gemini, Claude 3.7, GPT-4o, DeepSeek, Groq, Ollama)"
+                        {/* Global Model Selector Dropdown — dynamic registry, provider groups, key badges */}
+                        {(() => {
+                            const models = registryModels.length ? registryModels : getStoredLLMModels();
+                            const byProvider = new Map<string, typeof models>();
+                            models.forEach((m) => {
+                                const list = byProvider.get(m.provider) || [];
+                                list.push(m);
+                                byProvider.set(m.provider, list);
+                            });
+                            const activeModel = models.find(m => m.id === selectedGlobalModelId);
+                            const activeReady = activeModel
+                                ? modelProviderReady(activeModel.provider)
+                                : false;
+                            return (
+                                <div className="flex items-center gap-1.5 bg-gray-900 border border-teal-500/40 px-2.5 py-1.5 rounded-xl text-xs">
+                                    <span className="text-teal-400 font-bold">🧠 Model:</span>
+                                    <select
+                                        value={selectedGlobalModelId}
+                                        onChange={(e) => {
+                                            const newId = e.target.value;
+                                            setSelectedGlobalModelId(newId);
+                                            setActiveModelId(newId);
+                                            setRegistryModels(getStoredLLMModels());
+                                            const m = getStoredLLMModels().find(x => x.id === newId);
+                                            if (m && !modelProviderReady(m.provider) && m.provider !== 'ollama_local') {
+                                                console.warn(`Provider '${m.provider}' has no API key configured — generation will use offline procedural fallback.`);
+                                            }
+                                        }}
+                                        className="bg-gray-800 text-white text-xs rounded-lg px-2 py-1 border border-gray-700 focus:outline-none focus:border-teal-400 cursor-pointer font-medium max-w-[220px]"
+                                        title={`Active model: ${activeModel?.name || selectedGlobalModelId}${activeReady ? '' : ' — provider key missing (offline fallback)'}`}
+                                    >
+                                        {[...byProvider.entries()].map(([provider, list]) => (
+                                            <optgroup key={provider} label={provider}>
+                                                {list.map((m) => {
+                                                    const ready = modelProviderReady(m.provider);
+                                                    return (
+                                                        <option key={m.id} value={m.id}>
+                                                            {m.name.split('(')[0].trim()} {ready ? '✓' : '⚠ no key'}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </optgroup>
+                                        ))}
+                                    </select>
+                                    {activeModel && !modelProviderReady(activeModel.provider) && (
+                                        <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 border border-amber-500/40 px-1.5 py-0.5 rounded" title="Configure provider API key in Settings → Model Registry">
+                                            key
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Global Kill-Switch for agent / generation jobs */}
+                        <button
+                            onClick={handleKillAllJobs}
+                            className={`px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 border ${
+                                activeJobCount > 0
+                                    ? 'text-red-200 bg-red-900/80 hover:bg-red-800 border-red-500/50 animate-pulse'
+                                    : 'text-red-400/80 bg-red-950/60 hover:bg-red-900/80 border-red-500/30'
+                            }`}
+                            title="Immediately abort all active agent pipelines, virality loops, and bulk generation jobs"
+                        >
+                            <span>🛑 Kill All {activeJobCount > 0 ? `(${activeJobCount})` : ''}</span>
+                        </button>
+                        {bulkRunning && (
+                            <button
+                                onClick={handleStopBulkGeneration}
+                                className="px-3 py-2 text-xs font-bold rounded-xl text-amber-200 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/40 cursor-pointer"
+                                title="Stop bulk 3-version generation"
                             >
-                                {getStoredLLMModels().map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                        {m.name.split('(')[0].trim()} ({m.provider})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                ⏹ Stop Bulk
+                            </button>
+                        )}
 
                         {/* Production API Docs Button */}
                         <button
@@ -1671,7 +1835,7 @@ Instructions:
                             title="Production REST API: Endpoints, OpenAPI 3.0 schema, and cURL / Python / TypeScript SDK code"
                             className="px-3 py-2 text-xs font-bold rounded-xl text-cyan-300 hover:text-white bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                         >
-                            <span>ðŸŒ REST API</span>
+                            <span> REST API</span>
                         </button>
 
                         {/* Agent Orchestrator Button */}
@@ -1680,7 +1844,7 @@ Instructions:
                             title="Multi-Agent Orchestrator Studio: Autonomous pipelines, live Writer's Room debate, custom agent builder & LLM registry"
                             className="px-3 py-2 text-xs font-bold rounded-xl text-amber-300 hover:text-white bg-amber-950/80 hover:bg-amber-900 border border-amber-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                         >
-                            <span>âš¡ Agent Studio</span>
+                            <span>⚡ Agent Studio</span>
                         </button>
                     </div>
                 </div>
@@ -1688,7 +1852,7 @@ Instructions:
 
             {/* Main Content Area */}
             <main className="container mx-auto px-4 pt-8 max-w-6xl">
-                <React.Suspense fallback={<div className="text-center text-gray-400 py-16 text-sm">Loading view…</div>}>
+                <React.Suspense fallback={<div className="text-center text-gray-400 py-16 text-sm">Loading view</div>}>
                 {activeTab === 'theme' ? (
                     <ThemeLyricsGenerator
                       recentThemes={recentThemes}
@@ -1729,7 +1893,7 @@ Instructions:
                         {currentStep === 1 && <AlbumCreationStep onSubmit={handleAlbumCreation} isLoading={isLoading} />}
                         {currentStep === 2 && album && (
                             isFinalized
-                                ? <FinalizedAlbumView album={album} onReEdit={() => setIsFinalized(false)} />
+                                ? <FinalizedAlbumView album={album} onReEdit={() => setIsFinalized(false)} onUpdateSong={handleUpdateSong} />
                                 : <SongConfigurationStep
                                     album={album}
                                     isLoading={isLoading}
@@ -1741,9 +1905,10 @@ Instructions:
                                     onMarkTitlesReviewed={handleMarkTitlesReviewed}
                                     onApproveAllTitles={handleApproveAllTitlePackages}
                                     onGenerateLyrics={handleGenerateLyrics}
+                                    onGenerateAllLyricVersions={handleGenerateAllLyricVersions}
                                     onApproveSong={handleApproveSong}
-                                    onSuggestIdeas={(songId) => handleAIFill(songId, 'suggest')}
-                                    onEnhanceIdeas={(songId) => handleAIFill(songId, 'enhance')}
+                                    onSuggestIdeas={(id) => handleAIFill(id, 'suggest')}
+                                    onEnhanceIdeas={(id) => handleAIFill(id, 'enhance')}
                                     onFinalize={() => setIsFinalized(true)}
                                   />
                         )}
@@ -1763,7 +1928,7 @@ Instructions:
                     }`}
                     title="Toggle Floating Metronome"
                 >
-                    <span>â±ï¸ Metronome</span>
+                    <span> Metronome</span>
                 </button>
 
                 <button
@@ -1771,7 +1936,7 @@ Instructions:
                     className="px-3 py-2 bg-gray-900 hover:bg-gray-800 text-teal-300 border border-teal-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     title="Open Melody & Scale Motif Guide"
                 >
-                    <span>ðŸŽµ Melody</span>
+                    <span>🎵 Melody</span>
                 </button>
 
                 <button
@@ -1779,7 +1944,7 @@ Instructions:
                     className="px-3 py-2 bg-gray-900 hover:bg-gray-800 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     title="Open Lyrics Version History Sidebar"
                 >
-                    <span>ðŸ•’ History ({versionHistory.length})</span>
+                    <span>🕒 History ({versionHistory.length})</span>
                 </button>
 
                 <button
@@ -1794,7 +1959,7 @@ Instructions:
                     className="px-3 py-2 bg-gray-900 hover:bg-gray-800 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hidden sm:flex"
                     title="Vocalize Active Lyrics with TTS"
                 >
-                    <span>ðŸ”Š Voice TTS</span>
+                    <span>🔊 Voice TTS</span>
                 </button>
 
                 <button
@@ -1809,7 +1974,7 @@ Instructions:
                     className="px-3 py-2 bg-gray-900 hover:bg-gray-800 text-teal-300 border border-teal-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hidden md:flex"
                     title="Export Instant PDF Lead Sheet"
                 >
-                    <span>ðŸ“„ PDF</span>
+                    <span>📄 PDF</span>
                 </button>
             </div>
 
@@ -1867,6 +2032,7 @@ const AlbumCreationStep = ({ onSubmit, isLoading }: { onSubmit: (data: any) => v
         comments: '',
         genres: [] as string[],
         songCount: 7,
+        language: 'en',
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -1894,14 +2060,36 @@ const AlbumCreationStep = ({ onSubmit, isLoading }: { onSubmit: (data: any) => v
     return (
         <div className="max-w-2xl mx-auto bg-gray-800 p-6 sm:p-8 rounded-2xl border border-gray-700 animate-fade-in shadow-xl">
             <h2 className="text-2xl font-bold mb-2 text-center text-white">Create a New Concept Album</h2>
-            <p className="text-center text-gray-400 text-sm mb-6">Set the album theme — AI will auto-generate complete song titles and related track fields, ready for your review.</p>
+            <p className="text-center text-gray-400 text-sm mb-6">Set the album theme  AI will auto-generate complete song titles and related track fields, ready for your review.</p>
             <form onSubmit={handleSubmit} className="space-y-5">
                  <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Album Title (e.g., Midnight Confessions)" required className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm font-semibold"/>
                  <select name="occasion" value={formData.occasion} onChange={handleChange} className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm">
                     {OCCASIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 <textarea name="comments" value={formData.comments} onChange={handleChange} placeholder="Album Description or Story Concept (AI will review this to generate viral rhyming song titles)..." className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white h-24 focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm leading-relaxed"></textarea>
-                
+
+                <div>
+                    <label htmlFor="language" className="block mb-2 text-xs font-semibold uppercase tracking-wider text-gray-300">
+                        Album / Title Language
+                    </label>
+                    <select
+                        id="language"
+                        name="language"
+                        value={formData.language}
+                        onChange={handleChange}
+                        className="w-full bg-gray-900 p-3.5 rounded-xl border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm"
+                    >
+                        {LANGUAGES.map(l => (
+                            <option key={l.code} value={l.code}>
+                                {l.flag} {l.name} ({l.nativeName})
+                            </option>
+                        ))}
+                    </select>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                        Titles, hook ideas, and later lyrics are generated in this language. Music terms (Verse/Chorus, keys) stay standard.
+                    </p>
+                </div>
+
                 <div>
                     <label className="block mb-2 text-xs font-semibold uppercase tracking-wider text-gray-300">Select Primary Genres</label>
                     <div className="flex flex-wrap gap-2">
@@ -1933,7 +2121,7 @@ const AlbumCreationStep = ({ onSubmit, isLoading }: { onSubmit: (data: any) => v
                       <span>Creating Album...</span>
                     </>
                   ) : (
-                    <span>Create Album → Auto Titles + Fields → Review</span>
+                    <span>Create Album  Auto Titles + Fields  Review</span>
                   )}
                 </button>
             </form>
@@ -1952,22 +2140,28 @@ interface SongConfigurationStepProps {
     onMarkTitlesReviewed?: () => void;
     onApproveAllTitles?: () => void;
     onGenerateLyrics: (songId: string) => void;
+    onGenerateAllLyricVersions?: () => void;
     onApproveSong: (songId: string) => void;
     onSuggestIdeas: (songId: string) => void;
     onEnhanceIdeas: (songId: string) => void;
     onFinalize: () => void;
 }
-const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, onRegenerateTitle, onGenerateViralAlbumTitles, onAutomateTitles, onMarkTitlesReviewed, onApproveAllTitles, onGenerateLyrics, onApproveSong, onSuggestIdeas, onEnhanceIdeas, onFinalize }: SongConfigurationStepProps) => (
+const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, onRegenerateTitle, onGenerateViralAlbumTitles, onAutomateTitles, onMarkTitlesReviewed, onApproveAllTitles, onGenerateLyrics, onGenerateAllLyricVersions, onApproveSong, onSuggestIdeas, onEnhanceIdeas, onFinalize }: SongConfigurationStepProps) => (
     <div className="animate-fade-in space-y-6">
         <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-teal-400 bg-teal-950/60 border border-teal-500/30 px-3 py-1 rounded-md">Album Concept</span>
               <h2 className="text-3xl font-black text-white mt-2">{album.name}</h2>
-              <p className="text-gray-400 text-sm mt-1">{album.occasion} • {album.songs.length} Tracks</p>
+              <p className="text-gray-400 text-sm mt-1">
+                {album.occasion} • {album.songs.length} Tracks
+                {album.language && (
+                  <> • {LANGUAGES.find(l => l.code === album.language)?.flag || ''} {LANGUAGES.find(l => l.code === album.language)?.name || album.language}</>
+                )}
+              </p>
               {album.comments && <p className="text-gray-300 text-xs italic mt-2 max-w-xl">"{album.comments}"</p>}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
               <button
                 onClick={onAutomateTitles || onGenerateViralAlbumTitles}
                 disabled={isLoading}
@@ -1992,6 +2186,20 @@ const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, o
                   Titles Only
                 </button>
               )}
+              {onGenerateAllLyricVersions && (
+                <button
+                  onClick={onGenerateAllLyricVersions}
+                  disabled={isLoading}
+                  className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all ${
+                    isLoading
+                      ? "bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed"
+                      : "bg-gradient-to-r from-indigo-700 to-teal-600 hover:from-indigo-600 hover:to-teal-500 text-white border-teal-400/40 shadow-md active:scale-95 cursor-pointer"
+                  }`}
+                  title="Run Album Studio generation for every track — produces 3 lyric versions each"
+                >
+                  <span>🎛 Generate 3 Versions × All Tracks</span>
+                </button>
+              )}
             </div>
         </div>
 
@@ -2001,7 +2209,7 @@ const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, o
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-amber-200 flex items-center gap-2">
-                  <span>✅ Titles & track fields ready for review</span>
+                  <span>📋 Titles & track fields ready for review</span>
                 </h3>
                 <p className="text-xs text-amber-100/80 mt-1">
                   AI filled song titles plus genre, mood, structure, rhyme scheme, key, and lyric seeds from the album theme.
@@ -2066,13 +2274,22 @@ const SongConfigurationStep = ({ album, isLoading, stylePresets, onUpdateSong, o
 interface FinalizedAlbumViewProps {
     album: Album;
     onReEdit: () => void;
+    onUpdateSong?: (songId: string, data: Partial<Song>) => void;
 }
-const FinalizedAlbumView = ({ album, onReEdit }: FinalizedAlbumViewProps) => {
+const FinalizedAlbumView = ({ album, onReEdit, onUpdateSong }: FinalizedAlbumViewProps) => {
     const approvedSongs = album.songs.filter(song => song.isApproved);
+    const [versionBySong, setVersionBySong] = useState<Record<string, number>>({});
+
+    const selectVersion = (songId: string, vi: number) => {
+        setVersionBySong(prev => ({ ...prev, [songId]: vi }));
+        // Persist primary version so export / album views stay in sync
+        onUpdateSong?.(songId, { activeLyricVersion: vi });
+    };
 
     const fullAlbumLyricsText = approvedSongs.map((song, i) => {
-      const lyricsStr = song.lyrics?.[0]?.join('\n') || "No lyrics generated.";
-      return `Track ${i + 1}: ${song.title}\nGenre: ${song.genre} | Mood: ${song.mood} | Scheme: ${song.rhymeScheme || 'ABAB'}\n\n${lyricsStr}`;
+      const idx = versionBySong[song.id] ?? song.activeLyricVersion ?? 0;
+      const lyricsStr = song.lyrics?.[idx]?.join('\n') || song.lyrics?.[0]?.join('\n') || "No lyrics generated.";
+      return `Track ${i + 1}: ${song.title} (V${idx + 1})\nGenre: ${song.genre} | Mood: ${song.mood} | Scheme: ${song.rhymeScheme || 'ABAB'}\n\n${lyricsStr}`;
     }).join('\n\n====================\n\n');
 
     return (
@@ -2081,7 +2298,7 @@ const FinalizedAlbumView = ({ album, onReEdit }: FinalizedAlbumViewProps) => {
                 <div>
                     <span className="text-xs font-bold uppercase tracking-widest text-teal-400">Finalized Album</span>
                     <h2 className="text-3xl font-black text-white mt-1">{album.name}</h2>
-                    <p className="text-gray-400 text-sm">Approved Album Tracklist & Lyrics</p>
+                    <p className="text-gray-400 text-sm">Approved Album Tracklist & Lyrics · switch V1/V2/V3 per track</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {approvedSongs.length > 0 && <CopyButton textToCopy={fullAlbumLyricsText} label="Copy Full Album" />}
@@ -2094,20 +2311,38 @@ const FinalizedAlbumView = ({ album, onReEdit }: FinalizedAlbumViewProps) => {
             {approvedSongs.length > 0 ? (
                 <div className="space-y-8">
                     {approvedSongs.map((song, index) => {
-                        const songLyricsText = song.lyrics?.[0]?.join('\n') || '';
+                        const versionCount = song.lyrics?.length || 0;
+                        const activeIdx = Math.min(versionBySong[song.id] ?? song.activeLyricVersion ?? 0, Math.max(versionCount - 1, 0));
+                        const songLyricsText = song.lyrics?.[activeIdx]?.join('\n') || song.lyrics?.[0]?.join('\n') || '';
                         return (
                             <div key={song.id} className="bg-gray-900/80 p-6 rounded-xl border border-gray-700/80">
-                                <div className="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-800 pb-3 mb-4 gap-3">
                                   <div>
                                     <h3 className="text-xl font-bold text-teal-400">
                                         Track {index + 1}: {song.title}
                                     </h3>
-                                    <p className="text-xs text-gray-400 mt-0.5">Genre: {song.genre} â€¢ Mood: {song.mood} â€¢ Scheme: {song.rhymeScheme || 'ABAB'}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Genre: {song.genre} • Mood: {song.mood} • Scheme: {song.rhymeScheme || 'ABAB'}</p>
                                   </div>
-                                  <CopyButton textToCopy={`ðŸŽµ ${song.title}\n\n${songLyricsText}`} label="Copy Track" />
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {Array.from({ length: Math.max(versionCount, 1) }).map((_, vi) => (
+                                      <button
+                                        key={vi}
+                                        type="button"
+                                        onClick={() => selectVersion(song.id, vi)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                          vi === activeIdx
+                                            ? "bg-teal-600 text-white border-teal-400"
+                                            : "bg-gray-800 text-teal-300 border-gray-600 hover:border-teal-500/50"
+                                        }`}
+                                      >
+                                        V{vi + 1}
+                                      </button>
+                                    ))}
+                                    <CopyButton textToCopy={`🎵 ${song.title} (V${activeIdx + 1})\n\n${songLyricsText}`} label="Copy Track" />
+                                  </div>
                                 </div>
                                 <div>
-                                    {song.lyrics && song.lyrics.length > 0 ? (
+                                    {songLyricsText ? (
                                         <div className="text-sm text-gray-200 font-sans leading-relaxed">
                                             {parseLyricsMarkdown(songLyricsText)}
                                         </div>

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { GoogleGenAI } from "@google/genai";
 import { OPENAPI_SPEC } from "./openapiSpec";
 import { getProviderApiKeys, getServerCustomModels, getStoredLLMModels, registerServerCustomModel, executeUniversalLLMCallDetailed, testModelConnection } from "../agents/llmRegistry";
+import { generateProceduralLyricVersions } from "../agents/proceduralLyrics";
 import { AVAILABLE_AGENT_TOOLS, AVAILABLE_SKILLS, DEFAULT_AGENTS } from "../agents/defaultAgents";
 import { executeAgentTool } from "../agents/agentTools";
 import { getStoredAgents, PRECONFIGURED_PIPELINES, runOrchestratorPipeline, sendWritersRoomMessage } from "../agents/orchestratorEngine";
@@ -345,20 +346,89 @@ Return complete lyrics with section headers.`;
         systemPrompt,
         userPrompt,
         temperature: 0.85,
-        maxTokens: 2500
+        maxTokens: 2500,
+        responseFormat: "json",
       });
 
+      // Album Studio clients ask for THREE versions; offline path can still serve them.
+      const wantsVersions = body.versions === true || body.versionCount === 3 || String(body.versions) === "3";
       if (llmResult.usedFallback) {
+        if (wantsVersions || body.allowOffline === true) {
+          const versions = generateProceduralLyricVersions({
+            title: body.title,
+            genre,
+            mood,
+            customIdeas: body.theme,
+            occasion,
+            albumName: body.albumName || body.theme,
+            structure: body.structure,
+            rhymeScheme,
+            language,
+          }, 3);
+          return sendJson(res, 200, {
+            title: body.title || `${genre} Anthem - ${mood}`,
+            lyricVersions: versions,
+            lyricsText: versions[0].join("\n"),
+            offline: true,
+            usedFallback: true,
+            fallbackReason: llmResult.error || "Provider unavailable",
+            genre,
+            mood,
+            occasion,
+            language,
+            modelUsed: modelId,
+            generatedAt: Date.now()
+          });
+        }
         return sendJson(res, 502, {
-          error: "LLM provider unavailable � no lyrics were generated",
-          detail: llmResult.error || "Provider call failed and procedural fallback was suppressed for API callers",
+          error: "LLM provider unavailable — no live lyrics were generated",
+          detail: llmResult.error || "Provider call failed. Set body.allowOffline=true to receive 3 procedural lyric versions.",
           modelRequested: modelId
         });
       }
 
+      // Live model path: parse lyricVersions if present, else wrap single draft + pad to 3
+      let lyricVersions: string[][] = [];
+      const rawText = llmResult.text || "";
+      try {
+        const first = rawText.indexOf("{");
+        const last = rawText.lastIndexOf("}");
+        const jsonSlice = first !== -1 && last > first ? rawText.slice(first, last + 1) : rawText;
+        const parsed = JSON.parse(jsonSlice);
+        if (Array.isArray(parsed?.lyricVersions)) {
+          lyricVersions = parsed.lyricVersions
+            .map((v: any) => (Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split("\n") : []))
+            .filter((v: string[]) => v.length > 0);
+        }
+      } catch { /* free-text lyrics */ }
+
+      if (lyricVersions.length === 0 && rawText && !rawText.startsWith("[PROCEDURAL")) {
+        lyricVersions = [rawText.split("\n").filter(Boolean)];
+      }
+
+      // Album Studio contract: always return THREE versions (pad with procedural variants)
+      if (lyricVersions.length < 3 || (body.versions === true || body.versionCount === 3 || String(body.versions) === "3")) {
+        const padSrc = generateProceduralLyricVersions({
+          title: body.title,
+          genre,
+          mood,
+          customIdeas: body.theme,
+          occasion,
+          albumName: body.albumName || body.theme,
+          structure: body.structure,
+          rhymeScheme,
+          language,
+        }, 3);
+        while (lyricVersions.length < 3) {
+          lyricVersions.push([...(padSrc[lyricVersions.length % 3] || [])]);
+        }
+        lyricVersions = lyricVersions.slice(0, 3).map((v, i) => (v.length ? v : [...(padSrc[i] || [])]));
+      }
+
       return sendJson(res, 200, {
         title: body.title || `${genre} Anthem - ${mood}`,
-        lyricsText: llmResult.text,
+        lyricVersions,
+        lyricsText: lyricVersions[0].join("\n"),
         genre,
         mood,
         occasion,

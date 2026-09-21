@@ -73,13 +73,13 @@ const CompareDraftsModal: React.FC<CompareDraftsModalProps> = ({
             <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950 border border-teal-500/30 px-2.5 py-0.5 rounded">
               Side-by-Side Draft Comparison
             </span>
-            <h3 className="text-xl font-black text-white mt-1">ðŸ”¬ Compare Lyrical Metrics & Flow</h3>
+            <h3 className="text-xl font-black text-white mt-1">🔬 Compare Lyrical Metrics & Flow</h3>
           </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-xl font-bold p-2 hover:bg-gray-800 rounded-full cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -122,7 +122,7 @@ const CompareDraftsModal: React.FC<CompareDraftsModalProps> = ({
                 <h4 className="text-base font-black text-white">{leftTrack.title}</h4>
               </div>
               <span className="text-xs font-bold bg-teal-950 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-lg">
-                ðŸ”¥ Virality {leftTrack.viralityScore}%
+                🔥 Virality {leftTrack.viralityScore}%
               </span>
             </div>
 
@@ -163,7 +163,7 @@ const CompareDraftsModal: React.FC<CompareDraftsModalProps> = ({
               }}
               className="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer active:scale-95"
             >
-              Set Left Track as Master Version âœ“
+              Set Left Track as Master Version ✓
             </button>
           </div>
 
@@ -175,7 +175,7 @@ const CompareDraftsModal: React.FC<CompareDraftsModalProps> = ({
                 <h4 className="text-base font-black text-white">{rightTrack.title}</h4>
               </div>
               <span className="text-xs font-bold bg-purple-950 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg">
-                ðŸ”¥ Virality {rightTrack.viralityScore}%
+                🔥 Virality {rightTrack.viralityScore}%
               </span>
             </div>
 
@@ -216,7 +216,7 @@ const CompareDraftsModal: React.FC<CompareDraftsModalProps> = ({
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer active:scale-95"
             >
-              Set Right Track as Master Version âœ“
+              Set Right Track as Master Version ✓
             </button>
           </div>
         </div>

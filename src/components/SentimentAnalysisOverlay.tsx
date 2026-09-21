@@ -79,14 +79,14 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
     <div className="bg-gray-950/90 border border-gray-800 rounded-xl p-3.5 space-y-2.5 transition-all text-xs">
       <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center gap-2">
-          <span className="text-sm">ðŸ“Š</span>
+          <span className="text-sm">📊</span>
           <span className="font-bold text-gray-200 uppercase tracking-wider text-[11px]">Sentiment & Emotional Tone</span>
           <span className="bg-teal-950 text-teal-300 font-bold px-2 py-0.5 rounded border border-teal-500/30 text-[10px]">
             {scores.overallMood}
           </span>
         </div>
         <button className="text-gray-400 hover:text-white text-xs font-semibold">
-          {isExpanded ? "Hide Tone Meter â–²" : "Show Tone Meter â–¼"}
+          {isExpanded ? "Hide Tone Meter ▲" : "Show Tone Meter ▼"}
         </button>
       </div>
 
@@ -96,7 +96,7 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-amber-300 font-medium flex items-center gap-1">
-                <span>ðŸ˜Š</span> Happy / Joyful
+                <span>😊</span> Happy / Joyful
               </span>
               <span className="font-mono text-gray-400">{scores.happy}%</span>
             </div>
@@ -112,7 +112,7 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-blue-300 font-medium flex items-center gap-1">
-                <span>ðŸ˜¢</span> Sad / Melancholic
+                <span>😢</span> Sad / Melancholic
               </span>
               <span className="font-mono text-gray-400">{scores.sad}%</span>
             </div>
@@ -128,7 +128,7 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-rose-400 font-medium flex items-center gap-1">
-                <span>ðŸ”¥</span> Aggressive / Punchy
+                <span>🔥</span> Aggressive / Punchy
               </span>
               <span className="font-mono text-gray-400">{scores.aggressive}%</span>
             </div>
@@ -144,7 +144,7 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-pink-400 font-medium flex items-center gap-1">
-                <span>ðŸ’–</span> Romantic / Intimate
+                <span>💖</span> Romantic / Intimate
               </span>
               <span className="font-mono text-gray-400">{scores.romantic}%</span>
             </div>
@@ -160,7 +160,7 @@ const SentimentAnalysisOverlay: React.FC<{ lyricsText: string; isCollapsedDefaul
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-teal-300 font-medium flex items-center gap-1">
-                <span>âœ¨</span> Euphoric / Stadium Vibe
+                <span>✨</span> Euphoric / Stadium Vibe
               </span>
               <span className="font-mono text-gray-400">{scores.euphoric}%</span>
             </div>

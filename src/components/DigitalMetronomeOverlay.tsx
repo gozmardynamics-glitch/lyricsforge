@@ -156,7 +156,7 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
           }`}
           title={isPlaying ? "Pause Metronome" : "Start Metronome"}
         >
-          {isPlaying ? "â¸" : "â–¶"}
+          {isPlaying ? "" : "▶"}
         </button>
         <div>
           <div className="flex items-center gap-2">
@@ -171,14 +171,14 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
             className="p-1.5 hover:bg-gray-800 text-gray-400 hover:text-white rounded-lg text-xs cursor-pointer"
             title="Expand Controls"
           >
-            â†—ï¸
+            ↗
           </button>
           <button
             onClick={() => { setIsPlaying(false); onClose(); }}
             className="p-1.5 hover:bg-gray-800 text-gray-400 hover:text-white rounded-lg text-xs cursor-pointer"
             title="Close"
           >
-            âœ•
+            ✕
           </button>
         </div>
       </div>
@@ -191,7 +191,7 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
       <div className="flex items-center justify-between border-b border-gray-800 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-400 text-sm font-bold">
-            â±ï¸
+            
           </div>
           <div>
             <h4 className="text-sm font-black text-white">Digital Metronome</h4>
@@ -205,14 +205,14 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
             className="text-gray-400 hover:text-white text-xs p-1.5 rounded-lg hover:bg-gray-800 cursor-pointer"
             title="Minimize to Floating Bar"
           >
-            ðŸ—•
+            🗕
           </button>
           <button
             onClick={() => { setIsPlaying(false); onClose(); }}
             className="text-gray-400 hover:text-white text-xs p-1.5 rounded-lg hover:bg-gray-800 cursor-pointer"
             title="Close"
           >
-            âœ•
+            ✕
           </button>
         </div>
       </div>
@@ -330,7 +330,7 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
           onClick={handleTapTempo}
           className="py-2 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
         >
-          <span>ðŸ‘† Tap Tempo</span>
+          <span>👆 Tap Tempo</span>
         </button>
       </div>
 
@@ -366,7 +366,7 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
           }`}
           title={isMuted ? "Unmute Audio Click" : "Mute Audio (Silent Visual Flash)"}
         >
-          {isMuted ? "ðŸ”‡ Silent" : "ðŸ”Š Sound"}
+          {isMuted ? "🔇 Silent" : "🔊 Sound"}
         </button>
 
         <button
@@ -377,7 +377,7 @@ export const DigitalMetronomeOverlay: React.FC<DigitalMetronomeOverlayProps> = (
               : "bg-gradient-to-r from-teal-500 to-emerald-500 text-gray-950"
           }`}
         >
-          <span>{isPlaying ? "â¹ Stop Metronome" : "â–¶ Start Metronome"}</span>
+          <span>{isPlaying ? " Stop Metronome" : "▶ Start Metronome"}</span>
         </button>
       </div>
     </div>

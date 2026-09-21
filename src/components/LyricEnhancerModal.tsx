@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -154,7 +155,7 @@ Return JSON array with 4 objects:
       }
 
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -212,7 +213,7 @@ Return JSON array with 4 objects:
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-800 pb-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl p-2 bg-teal-950/80 border border-teal-500/30 rounded-xl">âœ¨</span>
+            <span className="text-2xl p-2 bg-teal-950/80 border border-teal-500/30 rounded-xl">✨</span>
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
                 Lyricist Pro AI Suite
@@ -224,18 +225,18 @@ Return JSON array with 4 objects:
             onClick={onClose}
             className="text-gray-400 hover:text-white text-lg p-2 rounded-full hover:bg-gray-800 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
         {/* Enhancer Type Tabs */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-gray-950 p-1.5 rounded-2xl border border-gray-800">
           {[
-            { id: 'word_replacement', label: 'ðŸ”¤ Vocabulary', desc: 'Power Verbs & Slang' },
-            { id: 'rhyme_finder', label: 'ðŸŽ¯ Rhyme Suite', desc: 'Slant & Assonance' },
-            { id: 'metaphor_expansion', label: 'ðŸŒŒ Metaphors', desc: 'Cinematic Imagery' },
-            { id: 'syllable_meter', label: 'â±ï¸ Syllable / Meter', desc: 'Scansion & Flow' },
-            { id: 'viral_hook', label: 'ðŸ”¥ Viral Hook', desc: 'TikTok & Earworms' }
+            { id: 'word_replacement', label: '🔤 Vocabulary', desc: 'Power Verbs & Slang' },
+            { id: 'rhyme_finder', label: '🎯 Rhyme Suite', desc: 'Slant & Assonance' },
+            { id: 'metaphor_expansion', label: '🌌 Metaphors', desc: 'Cinematic Imagery' },
+            { id: 'syllable_meter', label: ' Syllable / Meter', desc: 'Scansion & Flow' },
+            { id: 'viral_hook', label: '🔥 Viral Hook', desc: 'TikTok & Earworms' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -257,7 +258,7 @@ Return JSON array with 4 objects:
           <div className="flex items-center justify-between text-xs text-gray-400 font-semibold">
             <span>Target Line to Enhance:</span>
             <span className="text-teal-300 font-mono">
-              â™© {countSyllablesInLine(currentLine)} syllables
+              ♩ {countSyllablesInLine(currentLine)} syllables
             </span>
           </div>
           <input
@@ -314,7 +315,7 @@ Return JSON array with 4 objects:
                   <span>Enhancing with AI...</span>
                 </>
               ) : (
-                <span>âš¡ Generate AI Variations</span>
+                <span>⚡ Generate AI Variations</span>
               )}
             </button>
           </div>
@@ -334,7 +335,7 @@ Return JSON array with 4 objects:
                       {item.category}
                     </span>
                     <span className="text-[10px] text-gray-400 font-mono">
-                      â™© {item.syllableCount || countSyllablesInLine(item.enhancedLine)} syl
+                      ♩ {item.syllableCount || countSyllablesInLine(item.enhancedLine)} syl
                     </span>
                   </div>
                   <p className="text-white text-sm sm:text-base font-semibold leading-relaxed group-hover:text-teal-200 transition-colors">
@@ -350,14 +351,14 @@ Return JSON array with 4 objects:
                     onClick={() => handleCopySuggestion(item.enhancedLine, idx)}
                     className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
                   >
-                    {copiedIdx === idx ? "Copied!" : "ðŸ“‹ Copy"}
+                    {copiedIdx === idx ? "Copied!" : "📋 Copy"}
                   </button>
                   {onApplyReplacement && (
                     <button
                       onClick={() => handleApply(item.enhancedLine)}
                       className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer active:scale-95"
                     >
-                      âœ“ Replace Line
+                      ✓ Replace Line
                     </button>
                   )}
                 </div>
@@ -366,7 +367,7 @@ Return JSON array with 4 objects:
           ) : (
             !isLoading && (
               <div className="text-center py-12 text-gray-400 space-y-2 border border-dashed border-gray-800 rounded-2xl">
-                <span className="text-3xl">âœ¨</span>
+                <span className="text-3xl">✨</span>
                 <p className="text-xs">
                   Select an enhancement mode above and click <strong>Generate AI Variations</strong> to explore 4 tailored lyrical possibilities.
                 </p>

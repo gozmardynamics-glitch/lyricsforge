@@ -65,7 +65,7 @@ generateLyrics();`;
         <div className="flex items-center justify-between border-b border-gray-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-300 text-xl font-bold">
-              ðŸŒ
+              
             </div>
             <div>
               <h2 className="text-xl font-black text-white">Production REST API Endpoints</h2>
@@ -73,7 +73,7 @@ generateLyrics();`;
             </div>
           </div>
           <button onClick={onClose} className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all cursor-pointer">
-            âœ• Close
+            ✕ Close
           </button>
         </div>
 
@@ -119,7 +119,7 @@ generateLyrics();`;
               }}
               className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-teal-300 rounded-lg text-xs font-bold transition-all cursor-pointer border border-gray-700"
             >
-              {copied ? "âœ“ Copied!" : "ðŸ“‹ Copy Code"}
+              {copied ? "✓ Copied!" : "📋 Copy Code"}
             </button>
           </div>
           <pre className="p-4 text-xs font-mono text-gray-200 overflow-x-auto leading-relaxed bg-gray-950">
@@ -134,7 +134,7 @@ generateLyrics();`;
             rel="noreferrer"
             className="text-teal-400 hover:underline font-bold"
           >
-            ðŸ“„ Open Complete OpenAPI 3.0 JSON Specification
+            📄 Open Complete OpenAPI 3.0 JSON Specification
           </a>
           <button
             onClick={onClose}

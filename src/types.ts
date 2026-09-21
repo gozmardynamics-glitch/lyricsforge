@@ -31,6 +31,8 @@ export interface Song {
   tags?: string[];
   /** AI note on why this title fits the album — shown in review */
   titleRationale?: string;
+  /** Index of the version currently treated as primary (default 0 = V1) */
+  activeLyricVersion?: number;
 }
 
 export interface Album {

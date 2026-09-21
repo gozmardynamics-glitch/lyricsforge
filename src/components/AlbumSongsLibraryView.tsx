@@ -6,6 +6,11 @@ import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOOD
 import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMarkdown, countSyllablesInWord, countSyllablesInLine } from "./shared";
 import LyricEnhancerModal from "./LyricEnhancerModal";
 import LyricSheetExportModal from "./LyricSheetExportModal";
+import SongVersionStudio from "./SongVersionStudio";
+import { generateProceduralLyricVersions } from "../agents/proceduralLyrics";
+import { generateThreeLyricVersions } from "../agents/generateThreeLyricVersions";
+import { getActiveModelId } from "../agents/llmRegistry";
+import { registerAbortJob, completeAbortJob, runWithConcurrency } from "../agents/abortSupervisor";
 
 // --- ALBUM SONGS LIBRARY VIEW COMPONENT ---
 interface AlbumSongsLibraryViewProps {
@@ -29,11 +34,13 @@ const AlbumSongsLibraryView: React.FC<AlbumSongsLibraryViewProps> = ({
   const [isEnhancerOpen, setIsEnhancerOpen] = useState(false);
   const [enhancerInitialLine, setEnhancerInitialLine] = useState("");
   const [isExportSheetOpen, setIsExportSheetOpen] = useState(false);
+  const bulkAbortRef = React.useRef<AbortController | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
 
   if (!album || !album.songs || album.songs.length === 0) {
     return (
       <div className="bg-gray-800 p-8 rounded-2xl border border-gray-700 text-center space-y-4 animate-fade-in shadow-xl max-w-2xl mx-auto my-8">
-        <div className="text-4xl">ðŸ’¿</div>
+        <div className="text-4xl">💿</div>
         <h3 className="text-xl font-bold text-white">No Album Songs Found</h3>
         <p className="text-gray-400 text-sm max-w-md mx-auto">
           You haven't added any songs to your album yet. Use Virality Agent Studio to draft 3 track options or create a new tracklist below.
@@ -55,7 +62,7 @@ const AlbumSongsLibraryView: React.FC<AlbumSongsLibraryViewProps> = ({
           }}
           className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md text-xs cursor-pointer active:scale-95"
         >
-          âž• Start Album Tracklist with a Song
+          ➕ Start Album Tracklist with a Song
         </button>
       </div>
     );
@@ -79,7 +86,7 @@ const AlbumSongsLibraryView: React.FC<AlbumSongsLibraryViewProps> = ({
 
   const handleBulkApprove = () => {
     if (selectedTrackIds.length === 0) return;
-    // Single batch update â€” calling onUpdateSong per track overwrote all but
+    // Single batch update — calling onUpdateSong per track overwrote all but
     // the last change because each call derived from the same stale album snapshot.
     const updatedSongs = album.songs.map(s =>
       selectedTrackIds.includes(s.id) ? { ...s, isApproved: true } : s
@@ -107,7 +114,8 @@ const AlbumSongsLibraryView: React.FC<AlbumSongsLibraryViewProps> = ({
     if (!activeSong || !reInstruction.trim()) return;
     setIsApplyingInstruction(true);
     try {
-      const currentText = activeSong.lyrics?.[0]?.join('\n') || "No lyrics yet.";
+      const versionIdx = Math.min(activeSong.activeLyricVersion ?? 0, Math.max((activeSong.lyrics?.length || 1) - 1, 0));
+      const currentText = activeSong.lyrics?.[versionIdx]?.join('\n') || "No lyrics yet.";
       const prompt = `You are a legendary songwriting producer modifying song lyrics based on user instructions.
 
 Song Title: "${activeSong.title}"
@@ -121,22 +129,137 @@ User Instructions / Specific Changes:
 
 Task: Rewrite and refine the song lyrics according to the user instructions. Maintain section headers like [Verse 1], [Chorus], [Bridge], [Outro].
 Format as markdown.
+Return ONLY the rewritten lyrics text (no JSON required).
 `;
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt
       });
-      const newLyricsText = res.text || "";
+      let newLyricsText = res.text || "";
+      if (newLyricsText.includes("\n\n") && newLyricsText.startsWith("[PROCEDURAL")) {
+        newLyricsText = newLyricsText.substring(newLyricsText.indexOf("\n\n") + 2).trim();
+      }
+      if (!newLyricsText.trim()) {
+        throw new Error("Empty AI response");
+      }
       const lines = newLyricsText.split('\n');
-      onUpdateSong(activeSong.id, { lyrics: [lines] });
+      // Update ONLY the selected version — do not wipe other lyric versions
+      const existing = (activeSong.lyrics || []).map(v => (Array.isArray(v) ? [...v] : []));
+      if (existing.length === 0) {
+        onUpdateSong(activeSong.id, { lyrics: [lines], activeLyricVersion: 0 });
+      } else {
+        const next = existing.map((v, i) => (i === versionIdx ? lines : v));
+        onUpdateSong(activeSong.id, { lyrics: next, activeLyricVersion: versionIdx });
+      }
       setReInstruction("");
-      alert(`AI updated lyrics for "${activeSong.title}" successfully!`);
+      alert(`AI updated lyrics for "${activeSong.title}" (V${versionIdx + 1}) successfully! Other versions were preserved.`);
     } catch (err) {
       console.error("Error applying AI changes to song:", err);
       alert("Failed to apply AI changes. Please try again.");
     } finally {
       setIsApplyingInstruction(false);
     }
+  };
+
+  const handleGenerateVersionsForActive = async (songId: string) => {
+    const target = album.songs.find(s => s.id === songId);
+    if (!target) return;
+    setIsApplyingInstruction(true);
+    try {
+      const result = await generateThreeLyricVersions({
+        title: target.title,
+        genre: target.genre,
+        mood: target.mood,
+        customIdeas: target.customIdeas,
+        albumName: album.name,
+        occasion: album.occasion,
+        albumComments: album.comments,
+        structure: target.structure,
+        rhymeScheme: target.rhymeScheme,
+        language: target.language || album.language,
+      });
+      const versions = result.versions.slice(0, 3);
+      onUpdateSong(songId, { lyrics: versions, activeLyricVersion: 0 });
+      setSelectedSongId(songId);
+    } catch (err) {
+      console.error("Generate versions error:", err);
+      const proc = generateProceduralLyricVersions({
+        title: target.title,
+        genre: target.genre,
+        mood: target.mood,
+        customIdeas: target.customIdeas,
+        albumName: album.name,
+        occasion: album.occasion,
+        structure: target.structure,
+      }, 3);
+      onUpdateSong(songId, { lyrics: proc, activeLyricVersion: 0 });
+    } finally {
+      setIsApplyingInstruction(false);
+    }
+  };
+
+  const handleGenerateVersionsForAllTracks = async () => {
+    if (!album?.songs?.length) return;
+    setIsApplyingInstruction(true);
+    const abort = new AbortController();
+    bulkAbortRef.current = abort;
+    const job = registerAbortJob("bulk-lyrics", `Album Songs bulk 3-version — ${album.name}`, abort);
+    const tracks = [...album.songs];
+    setBulkProgress({ done: 0, total: tracks.length });
+    let completed = 0;
+    try {
+      const { results, aborted } = await runWithConcurrency(
+        tracks,
+        async (song) => {
+          const result = await generateThreeLyricVersions({
+            title: song.title,
+            genre: song.genre,
+            mood: song.mood,
+            customIdeas: song.customIdeas,
+            albumName: album.name,
+            occasion: album.occasion,
+            albumComments: album.comments,
+            structure: song.structure,
+            rhymeScheme: song.rhymeScheme,
+            language: song.language || album.language,
+            modelId: getActiveModelId(),
+            signal: abort.signal,
+          });
+          completed += 1;
+          setBulkProgress({ done: completed, total: tracks.length });
+          return {
+            ...song,
+            lyrics: result.versions.slice(0, 3),
+            activeLyricVersion: 0,
+          } as Song;
+        },
+        3,
+        abort.signal
+      );
+
+      const generated = results.filter((s): s is Song => Boolean(s && s.id));
+      // Merge generated lyrics into full tracklist (keep non-generated tracks as-is)
+      const byId = new Map(generated.map(s => [s.id, s]));
+      const updatedSongs = tracks.map(s => byId.get(s.id) || s);
+      onUpdateAlbum({ songs: updatedSongs, songCount: updatedSongs.length });
+      if (aborted || abort.signal.aborted) {
+        alert(`Bulk generation stopped. ${generated.length}/${tracks.length} tracks updated. Use Stop Bulk / Kill All to halt future runs.`);
+      } else {
+        alert(`Generated 3 lyric versions for ${generated.length} tracks (parallel ×3). Open Song Version Studio to review V1/V2/V3.`);
+      }
+    } catch (err) {
+      console.error("Bulk generate versions error:", err);
+      alert("Bulk version generation failed. Try per-track Generate 3 Versions.");
+    } finally {
+      completeAbortJob(job.id);
+      bulkAbortRef.current = null;
+      setBulkProgress(null);
+      setIsApplyingInstruction(false);
+    }
+  };
+
+  const handleStopBulk = () => {
+    bulkAbortRef.current?.abort();
   };
 
   const handleAddBlankSong = () => {
@@ -171,10 +294,10 @@ Format as markdown.
             Album Tracklist & Lyrics Library
           </span>
           <h2 className="text-2xl md:text-3xl font-black text-white mt-1.5 flex items-center gap-2">
-            ðŸ’¿ {album.name}
+            💿 {album.name}
           </h2>
           <p className="text-gray-400 text-xs mt-1">
-            {album.songs.length} Tracks Total â€¢ {album.songs.filter(s => s.isApproved).length} Approved
+            {album.songs.length} Tracks Total • {album.songs.filter(s => s.isApproved).length} Approved
           </p>
         </div>
 
@@ -191,20 +314,45 @@ Format as markdown.
             className="px-3.5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
             title="Download full album lyrics as a text file"
           >
-            <span>ðŸ“¥ Export TXT</span>
+            <span>📥 Export TXT</span>
           </button>
           <button
             onClick={() => exportAlbumToFile(album, 'json')}
             className="px-3.5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
             title="Download full album as a JSON file"
           >
-            <span>ðŸ“„ Export JSON</span>
+            <span>📄 Export JSON</span>
+          </button>
+          <button
+            onClick={handleGenerateVersionsForAllTracks}
+            disabled={isApplyingInstruction}
+            title="Run Album Studio pipeline for every track — 3 lyric versions each, parallel ×3"
+            className="bg-gradient-to-r from-indigo-700 to-teal-600 hover:from-indigo-600 hover:to-teal-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+          >
+            <span>🎛 Generate 3 Versions × All Tracks</span>
+          </button>
+          {isApplyingInstruction && (
+            <button
+              onClick={handleStopBulk}
+              title="Stop bulk generation"
+              className="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/40 font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <span>⏹ Stop Bulk{bulkProgress ? ` (${bulkProgress.done}/${bulkProgress.total})` : ''}</span>
+            </button>
+          )}
+          <button
+            onClick={() => handleGenerateVersionsForActive(activeSong?.id || album.songs[0]?.id)}
+            disabled={isApplyingInstruction || !album.songs.length}
+            title="Generate 3 lyric versions for the selected track"
+            className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+          >
+            <span>⚡ Generate 3 Versions</span>
           </button>
           <button
             onClick={handleAddBlankSong}
             className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
-            <span>âž• Add Song to Album</span>
+            <span>➕ Add Song to Album</span>
           </button>
         </div>
       </div>
@@ -227,32 +375,32 @@ Format as markdown.
           {selectedTrackIds.length > 0 && (
             <div className="bg-teal-950/90 border border-teal-500/40 p-2.5 rounded-xl space-y-2 animate-fade-in text-xs">
               <span className="text-[10px] font-bold text-teal-300 block">
-                âš¡ Bulk Action Panel ({selectedTrackIds.length} Selected):
+                ⚡ Bulk Action Panel ({selectedTrackIds.length} Selected):
               </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={handleBulkApprove}
                   className="py-1.5 px-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg text-[10px]"
                 >
-                  âœ… Approve
+                  ✅ Approve
                 </button>
                 <button
                   onClick={handleBulkRemoveSelected}
                   className="py-1.5 px-2 bg-red-800 hover:bg-red-700 text-white font-bold rounded-lg text-[10px]"
                 >
-                  ðŸ—‘ï¸ Delete
+                  🗑 Delete
                 </button>
                 <button
                   onClick={() => handleBulkExportSelected('txt')}
                   className="py-1.5 px-2 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-lg text-[10px]"
                 >
-                  ðŸ“¥ Export TXT
+                  📥 Export TXT
                 </button>
                 <button
                   onClick={() => handleBulkExportSelected('json')}
                   className="py-1.5 px-2 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-lg text-[10px]"
                 >
-                  ðŸ“„ Export JSON
+                  📄 Export JSON
                 </button>
               </div>
             </div>
@@ -300,7 +448,7 @@ Format as markdown.
                       song.isApproved ? 'bg-teal-500/20 text-teal-300 border-teal-500/50' : 'bg-gray-800 text-gray-400 border-gray-700'
                     }`}
                   >
-                    {song.isApproved ? "Approved âœ“" : "Draft"}
+                    {song.isApproved ? "Approved ✓" : "Draft"}
                   </button>
                 </div>
 
@@ -315,7 +463,31 @@ Format as markdown.
                 />
 
                 <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-                  <span>{song.genre || 'Pop'} â€¢ {song.mood || 'Euphoric'}</span>
+                  <span className="flex items-center gap-1.5 flex-wrap">
+                    <span>{song.genre || 'Pop'} • {song.mood || 'Euphoric'}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
+                        (song.lyrics?.length || 0) >= 3
+                          ? "bg-teal-950/80 text-teal-300 border-teal-500/40"
+                          : "bg-gray-800 text-gray-400 border-gray-600"
+                      }`}
+                      title={`${song.lyrics?.length || 0} lyric version(s) · primary V${(song.activeLyricVersion ?? 0) + 1}`}
+                    >
+                      V{song.lyrics?.length || 0} · Primary V{(song.activeLyricVersion ?? 0) + 1}
+                    </span>
+                    {(song.lyrics?.length || 0) < 3 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerateVersionsForActive(song.id);
+                        }}
+                        className="text-[10px] text-teal-400 hover:text-teal-300 font-bold underline"
+                        title="Generate 3 lyric versions for this track"
+                      >
+                        +3 versions
+                      </button>
+                    )}
+                  </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -324,7 +496,7 @@ Format as markdown.
                     title="Remove from album"
                     className="text-gray-500 hover:text-red-400 text-xs px-1 cursor-pointer"
                   >
-                    ðŸ—‘ï¸
+                    🗑
                   </button>
                 </div>
               </div>
@@ -347,8 +519,8 @@ Format as markdown.
                     className="text-2xl font-black text-white bg-transparent border-b border-gray-700 hover:border-teal-400 focus:border-teal-400 focus:outline-none p-1 block w-full"
                   />
                   <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <span>Genre: <strong className="text-gray-200">{activeSong.genre}</strong></span> â€¢ 
-                    <span>Mood: <strong className="text-gray-200">{activeSong.mood}</strong></span> â€¢ 
+                    <span>Genre: <strong className="text-gray-200">{activeSong.genre}</strong></span> • 
+                    <span>Mood: <strong className="text-gray-200">{activeSong.mood}</strong></span> • 
                     <span>Scheme: <strong className="text-gray-200">{activeSong.rhymeScheme || 'ABAB'}</strong></span>
                   </div>
                 </div>
@@ -362,31 +534,43 @@ Format as markdown.
                     }}
                     className="px-3 py-2 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>âœ¨ Enhance Lines</span>
+                    <span>✨ Enhance Lines</span>
                   </button>
 
                   <button
                     onClick={() => setIsExportSheetOpen(true)}
                     className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-teal-300 font-bold rounded-xl text-xs transition-all border border-gray-600 shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>ðŸŽ¼ Lead Sheet</span>
+                    <span>🎼 Lead Sheet</span>
                   </button>
 
                   <CopyButton
-                    textToCopy={`ðŸŽµ ${activeSong.title}\n\n${activeSong.lyrics?.[0]?.join('\n') || ''}`}
+                    textToCopy={`🎵 ${activeSong.title}\n\n${activeSong.lyrics?.[0]?.join('\n') || ''}`}
                     label="Copy Lyrics"
                   />
                 </div>
               </div>
 
-              {/* Display Lyrics with Syntax Highlighting & Real-Time Syllable Counter */}
-              <div className="bg-gray-900/90 p-5 rounded-2xl border border-gray-700/80 max-h-[450px] overflow-y-auto">
+              {/* 3-Version Studio: function buttons + edit workspace */}
+              <SongVersionStudio
+                song={activeSong}
+                onUpdate={onUpdateSong}
+                onGenerateVersions={handleGenerateVersionsForActive}
+                isLoading={isApplyingInstruction}
+                layout="studio"
+              />
+
+              {/* Legacy compact preview of primary version */}
+              <div className="bg-gray-900/90 p-5 rounded-2xl border border-gray-700/80 max-h-[280px] overflow-y-auto">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                  Primary version preview (V{(activeSong.activeLyricVersion ?? 0) + 1})
+                </div>
                 {activeSong.lyrics && activeSong.lyrics.length > 0 ? (
-                  parseLyricsMarkdown(activeSong.lyrics[0].join('\n'))
+                  parseLyricsMarkdown((activeSong.lyrics[activeSong.activeLyricVersion ?? 0] || activeSong.lyrics[0]).join('\n'))
                 ) : (
-                  <div className="text-center py-10 text-gray-500 space-y-2">
+                  <div className="text-center py-8 text-gray-500 space-y-2">
                     <p className="italic text-sm">No lyrics generated for this track yet.</p>
-                    <p className="text-xs">Type instructions below to generate or rewrite this track with AI.</p>
+                    <p className="text-xs">Use <strong>Generate 3 Versions</strong> above, or type AI re-instructions below.</p>
                   </div>
                 )}
               </div>
@@ -394,7 +578,7 @@ Format as markdown.
               {/* Interactive AI Re-instruction Box */}
               <div className="bg-gray-900/90 p-4 rounded-2xl border border-teal-500/30 space-y-3">
                 <label className="block text-xs font-bold text-teal-300 uppercase tracking-wider flex items-center justify-between">
-                  <span>âœ¨ AI Lyric Re-Instruction & Custom Changes</span>
+                  <span>✨ AI Lyric Re-Instruction & Custom Changes</span>
                   <span className="text-[10px] text-gray-400 font-normal">Instruct AI to rewrite verses, tweak cadence, or add viral hooks</span>
                 </label>
 
@@ -423,7 +607,7 @@ Format as markdown.
                       </>
                     ) : (
                       <>
-                        <span>âš¡ Implement AI Changes & Rewrite Lyrics</span>
+                        <span>⚡ Implement AI Changes & Rewrite Lyrics</span>
                       </>
                     )}
                   </button>
@@ -444,16 +628,21 @@ Format as markdown.
                     language: activeSong.language || album.language
                   }}
                   onApplyReplacement={(newLine) => {
-                    if (activeSong.lyrics?.[0]) {
-                      const updatedLines = [...activeSong.lyrics[0]];
-                      const idx = updatedLines.findIndex(l => l.includes(enhancerInitialLine) || l === enhancerInitialLine);
-                      if (idx !== -1) {
-                        updatedLines[idx] = newLine;
-                      } else {
-                        updatedLines.push(newLine);
-                      }
-                      onUpdateSong(activeSong.id, { lyrics: [updatedLines] });
+                    const versionIdx = activeSong.activeLyricVersion ?? 0;
+                    const existing = (activeSong.lyrics || []).map(v => (Array.isArray(v) ? [...v] : []));
+                    if (existing.length === 0) {
+                      onUpdateSong(activeSong.id, { lyrics: [[newLine]], activeLyricVersion: 0 });
+                      return;
                     }
+                    const updatedLines = [...(existing[versionIdx] || [])];
+                    const idx = updatedLines.findIndex(l => l.includes(enhancerInitialLine) || l === enhancerInitialLine);
+                    if (idx !== -1) {
+                      updatedLines[idx] = newLine;
+                    } else {
+                      updatedLines.push(newLine);
+                    }
+                    const next = existing.map((v, i) => (i === versionIdx ? updatedLines : v));
+                    onUpdateSong(activeSong.id, { lyrics: next, activeLyricVersion: versionIdx });
                   }}
                 />
               )}

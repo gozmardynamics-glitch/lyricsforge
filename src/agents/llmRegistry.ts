@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { proceduralFallbackForLyricVersions } from "./proceduralLyrics";
 import { LLMModelDefinition, LLMProvider, ModelConnectionStatus, UniversalLLMOptions } from "./agentTypes";
 
 export const DEFAULT_LLM_MODELS: LLMModelDefinition[] = [
@@ -420,16 +421,80 @@ const LOCAL_STORAGE_KEY_PROVIDER_KEYS = "lyricist_pro_provider_api_keys_v2";
 // localStorage, so GET /api/models/list reflects what the dispatcher can use.
 const MAX_SERVER_CUSTOM_MODELS = 100;
 const serverCustomModels: LLMModelDefinition[] = [];
+const SERVER_CUSTOM_MODELS_FILE = "data/server_custom_models.json";
 
 const VALID_PROVIDERS: LLMProvider[] = [
   "google_gemini", "openai", "anthropic", "deepseek", "groq",
   "openrouter", "ollama_local", "nous_hermes", "openai_compatible", "anthropic_compatible"
 ];
 
+/** Load server-registered custom models from disk (Node only; no-op in browser). */
+export function loadServerCustomModelsFromDisk(): number {
+  if (typeof localStorage !== "undefined") return 0;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const candidates = [
+      process.env.LYRICSFORGE_MODELS_FILE,
+      path.resolve(process.cwd(), SERVER_CUSTOM_MODELS_FILE),
+      path.resolve(__dirname, "../../", SERVER_CUSTOM_MODELS_FILE),
+      path.resolve(__dirname, "../", SERVER_CUSTOM_MODELS_FILE),
+    ].filter(Boolean) as string[];
+    for (const file of candidates) {
+      try {
+        if (!fs.existsSync(file)) continue;
+        const raw = fs.readFileSync(file, "utf-8");
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.models) ? parsed.models : [];
+        for (const m of list) {
+          try {
+            registerServerCustomModel(m);
+          } catch {
+            /* skip invalid entries */
+          }
+        }
+        return serverCustomModels.length;
+      } catch {
+        /* try next path */
+      }
+    }
+  } catch {
+    /* browser or missing fs */
+  }
+  return serverCustomModels.length;
+}
+
+function persistServerCustomModels(): void {
+  if (typeof localStorage !== "undefined") return;
+  try {
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const dir = path.resolve(process.cwd(), "data");
+    const file = process.env.LYRICSFORGE_MODELS_FILE || path.join(dir, "server_custom_models.json");
+    if (!fs.existsSync(path.dirname(file))) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+    }
+    fs.writeFileSync(file, JSON.stringify({ models: serverCustomModels, updatedAt: Date.now() }, null, 2), "utf-8");
+  } catch (e) {
+    console.warn("Failed to persist server custom models:", e);
+  }
+}
+
+// Auto-load once in Node environments
+if (!(typeof localStorage !== "undefined")) {
+  try {
+    loadServerCustomModelsFromDisk();
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Registers (or replaces by id) a model on the server-side registry.
  * Returns the stored definition, or throws with a validation message.
  * API keys are intentionally rejected — server keys come from Node env only.
+ * Persisted to data/server_custom_models.json when running on Node.
  */
 export function registerServerCustomModel(input: Partial<LLMModelDefinition>): LLMModelDefinition {
   if (!input || typeof input !== "object") throw new Error("Model definition body must be an object");
@@ -458,11 +523,48 @@ export function registerServerCustomModel(input: Partial<LLMModelDefinition>): L
   const existing = serverCustomModels.findIndex((m) => m.id === model.id);
   if (existing >= 0) serverCustomModels[existing] = model;
   else serverCustomModels.push(model);
+  persistServerCustomModels();
   return model;
 }
 
 export function getServerCustomModels(): LLMModelDefinition[] {
   return serverCustomModels;
+}
+
+/** Whether a provider has a usable API key (or is local Ollama). Used by the header dropdown. */
+export function modelProviderReady(provider: LLMProvider | string | undefined): boolean {
+  if (!provider) return false;
+  if (provider === "ollama_local") return true;
+  const keys = getProviderApiKeys();
+  switch (provider) {
+    case "google_gemini":
+      return Boolean(keys.google_gemini);
+    case "openai":
+    case "openai_compatible":
+      return Boolean(keys.openai || keys.custom);
+    case "anthropic":
+    case "anthropic_compatible":
+      return Boolean(keys.anthropic);
+    case "deepseek":
+      return Boolean(keys.deepseek);
+    case "groq":
+      return Boolean(keys.groq);
+    case "openrouter":
+    case "nous_hermes":
+      return Boolean(keys.openrouter);
+    default:
+      return Boolean(keys.custom);
+  }
+}
+
+export function listProvidersNeedingKeys(): string[] {
+  const providers = new Set<string>();
+  for (const m of getStoredLLMModels()) {
+    if (m.provider !== "ollama_local" && !modelProviderReady(m.provider)) {
+      providers.add(m.provider);
+    }
+  }
+  return [...providers];
 }
 
 export interface ProviderApiKeys {
@@ -536,13 +638,18 @@ export function saveLLMModels(models: LLMModelDefinition[]): void {
   safeStorageSet(LOCAL_STORAGE_KEY_MODELS, JSON.stringify(models));
 }
 
+// In-memory fallback when localStorage is unavailable (Node server, tests)
+let memoryActiveModelId: string | null = null;
+let memoryProviderKeys: ProviderApiKeys | null = null;
+
 export function getActiveModelId(): string {
   const saved = safeStorageGet(LOCAL_STORAGE_KEY_ACTIVE_MODEL);
   if (saved) return saved;
-  return "gemini_3_6_flash";
+  return memoryActiveModelId || "gemini_3_6_flash";
 }
 
 export function setActiveModelId(modelId: string): void {
+  memoryActiveModelId = modelId;
   safeStorageSet(LOCAL_STORAGE_KEY_ACTIVE_MODEL, modelId);
 }
 
@@ -564,7 +671,7 @@ export function getProviderApiKeys(): ProviderApiKeys {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
-        return {
+        const mergedKeys: ProviderApiKeys = {
           ...defaults,
           ...parsed,
           google_gemini: parsed.google_gemini || defaults.google_gemini,
@@ -576,17 +683,24 @@ export function getProviderApiKeys(): ProviderApiKeys {
           custom: parsed.custom || defaults.custom,
           server_access_token: parsed.server_access_token || defaults.server_access_token
         };
+        memoryProviderKeys = mergedKeys;
+        return mergedKeys;
       }
     } catch (e) {
       console.error("Failed to parse provider API keys", e);
     }
   }
 
+  if (memoryProviderKeys) {
+    return { ...defaults, ...memoryProviderKeys };
+  }
+
   return defaults;
 }
 
 export function saveProviderApiKeys(keys: ProviderApiKeys): void {
-  safeStorageSet(LOCAL_STORAGE_KEY_PROVIDER_KEYS, JSON.stringify(keys));
+  memoryProviderKeys = { ...(memoryProviderKeys || {}), ...keys };
+  safeStorageSet(LOCAL_STORAGE_KEY_PROVIDER_KEYS, JSON.stringify(memoryProviderKeys));
 }
 
 /**
@@ -697,6 +811,18 @@ function generateProceduralFallback(options: UniversalLLMOptions): string {
   const isJson = options.responseFormat === "json" || userPrompt.includes("JSON") || userPrompt.includes("json");
 
   if (isJson) {
+    // Album Studio / API path that asks for THREE lyric versions
+    if (
+      userPrompt.includes("lyricVersions") ||
+      userPrompt.includes("THREE distinct versions") ||
+      userPrompt.includes("Generate THREE") ||
+      userPrompt.includes("three versions") ||
+      (userPrompt.includes("lyric") && userPrompt.includes("versions") && userPrompt.includes("Song Title"))
+    ) {
+      // Offline path: return THREE structured lyric versions matching the app schema
+      return proceduralFallbackForLyricVersions(userPrompt);
+    }
+
     if (userPrompt.includes("rhyme") || userPrompt.includes("rhyming")) {
       return JSON.stringify([
         { word: "ignite", type: "Perfect", syllables: 2 },

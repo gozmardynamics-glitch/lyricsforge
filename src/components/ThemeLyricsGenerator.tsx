@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
+import { getActiveModelId, safeExtractJSON } from "../agents/llmRegistry";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
 import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOODS, DEFAULT_STYLE_PRESETS } from "../constants";
 import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMarkdown, countSyllablesInWord, countSyllablesInLine } from "./shared";
@@ -23,6 +24,7 @@ const ThemeLyricsGenerator = ({
   const [customMoodText, setCustomMoodText] = useState("");
   const [structure, setStructure] = useState("Verse - Chorus - Verse - Chorus - Bridge - Chorus");
   const [selectedStylePresetId, setSelectedStylePresetId] = useState("");
+  const [language, setLanguage] = useState("en");
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedTitle, setSuggestedTitle] = useState("");
   const [generatedLyrics, setGeneratedLyrics] = useState("");
@@ -41,6 +43,7 @@ const ThemeLyricsGenerator = ({
         if (parsed.customMoodText) setCustomMoodText(parsed.customMoodText);
         if (parsed.structure) setStructure(parsed.structure);
         if (parsed.selectedStylePresetId) setSelectedStylePresetId(parsed.selectedStylePresetId);
+        if (parsed.language) setLanguage(parsed.language);
         if (parsed.suggestedTitle) setSuggestedTitle(parsed.suggestedTitle);
         if (parsed.generatedLyrics) setGeneratedLyrics(parsed.generatedLyrics);
       }
@@ -60,6 +63,7 @@ const ThemeLyricsGenerator = ({
         customMoodText,
         structure,
         selectedStylePresetId,
+        language,
         suggestedTitle,
         generatedLyrics,
         timestamp: Date.now()
@@ -68,7 +72,7 @@ const ThemeLyricsGenerator = ({
     } catch (e) {
       console.error("Error writing LS_THEME_STATE:", e);
     }
-  }, [theme, genre, rhymeScheme, emotionalMood, customMoodText, structure, selectedStylePresetId, suggestedTitle, generatedLyrics]);
+  }, [theme, genre, rhymeScheme, emotionalMood, customMoodText, structure, selectedStylePresetId, language, suggestedTitle, generatedLyrics]);
 
   // Immediate save on state changes
   useEffect(() => {
@@ -124,20 +128,21 @@ Preferred Rhyme Scheme: ${rhymeScheme}
 Emotional Mood / Tone: "${activeMood}" (Crucial: Ensure word choice, phrasing, and emotional intensity deeply reflect this tone!)
 Song Structure: ${structure}
 ${styleInstruction}
+Target lyric language: ${LANGUAGES.find(l => l.code === language)?.name || language || 'English'}
 
 Requirements:
-1. Write poetic, emotionally resonant song lyrics adhering strictly to the preferred ${rhymeScheme} rhyme scheme for verses and choruses.
+1. Write poetic, emotionally resonant song lyrics in the target language, adhering strictly to the preferred ${rhymeScheme} rhyme scheme for verses and choruses (adapt rhyme naturally for that language).
 2. Infuse the specific emotional mood "${activeMood}" into every stanza.
-3. Use clear markdown section titles like [Verse 1], [Chorus], [Verse 2], [Bridge], [Outro].
-4. Review the theme ('${theme}') and description to suggest a viral, catchy song title that cleverly rhymes or plays on words with the concept.
+3. Use clear markdown section titles like [Verse 1], [Chorus], [Verse 2], [Bridge], [Outro] (section labels may stay English).
+4. Review the theme ('${theme}') and description to suggest a viral, catchy song title in the target language that cleverly rhymes or plays on words with the concept.
 5. Return strict JSON format with properties:
-   - "songTitle": string (the viral catchy song title suggested based on lyrics & theme)
+   - "songTitle": string (the viral catchy song title in the target language)
    - "lyrics": string (the complete song lyrics formatted with markdown section headers)
 `;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -152,7 +157,7 @@ Requirements:
         }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = safeExtractJSON(response.text || "{}", {} as any);
       if (data.songTitle && data.lyrics) {
         setSuggestedTitle(data.songTitle);
         setGeneratedLyrics(data.lyrics);
@@ -199,7 +204,7 @@ Requirements:
   };
 
   const textToCopy = suggestedTitle 
-    ? `ðŸŽµ ${suggestedTitle}\nGenre: ${genre} | Mood: ${activeMood} | Scheme: ${rhymeScheme}\n\n${generatedLyrics}`
+    ? `🎵 ${suggestedTitle}\nGenre: ${genre} | Mood: ${activeMood} | Scheme: ${rhymeScheme}\n\n${generatedLyrics}`
     : generatedLyrics;
 
   return (
@@ -226,7 +231,7 @@ Requirements:
               type="button"
               className="px-3.5 py-2 bg-gradient-to-r from-teal-900 to-gray-800 hover:from-teal-800 text-teal-300 border border-teal-500/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm self-start sm:self-auto cursor-pointer"
             >
-              <span>ðŸ¤– Agentic Studio</span>
+              <span>🤖 Agentic Studio</span>
             </button>
           </div>
 
@@ -339,6 +344,23 @@ Requirements:
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">
+                Lyric Language
+              </label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full bg-gray-900 text-gray-200 p-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400 text-sm font-medium"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.flag} {l.name} ({l.nativeName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               type="submit"
               disabled={isLoading || !theme.trim()}
@@ -355,7 +377,7 @@ Requirements:
                 </>
               ) : (
                 <>
-                  <span>ðŸŽµ Generate Lyrics & Viral Song Title</span>
+                  <span>🎵 Generate Lyrics & Viral Song Title</span>
                 </>
               )}
             </button>
@@ -379,7 +401,7 @@ Requirements:
                     Suggested Viral Song Title
                   </span>
                   <h3 className="text-3xl font-black text-white mt-2 flex items-center gap-2">
-                    <span className="text-teal-400">ðŸŽµ</span> {suggestedTitle}
+                    <span className="text-teal-400">🎵</span> {suggestedTitle}
                   </h3>
                 </div>
                 <CopyButton textToCopy={textToCopy} label="Copy Lyrics & Title" />
@@ -399,7 +421,7 @@ Requirements:
         <div className="bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-lg sticky top-24">
           <div className="flex items-center justify-between pb-3 border-b border-gray-700">
             <h3 className="font-bold text-white text-base flex items-center gap-2">
-              <span>ðŸ•’</span> Recent Themes
+              <span>🕒</span> Recent Themes
               <span className="text-[10px] bg-teal-950 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-bold">
                 Last 5
               </span>
@@ -432,7 +454,7 @@ Requirements:
                   </div>
 
                   <h4 className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors line-clamp-1">
-                    ðŸŽµ {item.suggestedTitle || "Untitled Theme"}
+                    🎵 {item.suggestedTitle || "Untitled Theme"}
                   </h4>
 
                   <p className="text-[11px] text-gray-300 line-clamp-2 italic">

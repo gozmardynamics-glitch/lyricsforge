@@ -49,21 +49,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl border border-gray-700 max-w-lg w-full space-y-6 shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-700 pb-4">
           <div className="flex items-center gap-2">
-            <span className="text-xl">âš™ï¸</span>
+            <span className="text-xl">⚙</span>
             <h3 className="text-xl font-black text-white">Application Settings & Accessibility</h3>
           </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-lg p-1 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
         {/* Theme Mode Toggle (Dark Studio vs High Contrast Light) */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-teal-400 uppercase tracking-wider">
-            ðŸŽ¨ Color Theme & Display Mode
+            🎨 Color Theme & Display Mode
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -75,7 +75,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   : "bg-gray-900/60 border-gray-700 text-gray-400 hover:text-white"
               }`}
             >
-              <span className="text-2xl">ðŸŒ™</span>
+              <span className="text-2xl">🌙</span>
               <span className="text-xs font-bold">Dark Studio Mode</span>
               <span className="text-[10px] text-gray-400">Sleek dark theme for dim environments</span>
             </button>
@@ -89,7 +89,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   : "bg-gray-900/60 border-gray-700 text-gray-400 hover:text-white"
               }`}
             >
-              <span className="text-2xl">â˜€ï¸</span>
+              <span className="text-2xl">☀</span>
               <span className="text-xs font-bold">High Contrast Light</span>
               <span className="text-[10px] text-gray-400">Clean high-contrast for long writing sessions</span>
             </button>
@@ -99,7 +99,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Default Rhyme Scheme Preference */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
-            ðŸŽ¼ Default Rhyme Scheme for New Songs
+            🎼 Default Rhyme Scheme for New Songs
           </label>
           <select
             value={settings.defaultRhymeScheme}
@@ -117,7 +117,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Lyric Font Size Preference */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
-            ðŸ“– Lyric Display Text Size
+            📖 Lyric Display Text Size
           </label>
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -144,7 +144,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Auto-Save Frequency */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
-            ðŸ’¾ State Auto-Save Frequency
+            💾 State Auto-Save Frequency
           </label>
           <select
             value={settings.autoSaveInterval}
@@ -164,7 +164,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="text-xs font-bold text-gray-300 block">Session</span>
               <span className="text-[10px] text-gray-400">
                 {!authChecked
-                  ? "Checking server session…"
+                  ? "Checking server session"
                   : sessionUser
                     ? `Signed in as ${sessionUser} (password-protected deployment)`
                     : "No login required (server auth disabled or running locally)"}

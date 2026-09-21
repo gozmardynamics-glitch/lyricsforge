@@ -90,7 +90,7 @@ export const generateLyricsPdf = (options: PdfExportOptions) => {
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(`${options.title} â€¢ (Lead Sheet Continued)`, margin, y);
+        doc.text(`${options.title} • (Lead Sheet Continued)`, margin, y);
         y += 7;
       }
 
@@ -133,7 +133,7 @@ export const generateLyricsPdf = (options: PdfExportOptions) => {
       doc.setFontSize(7.5);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        `Lyricist Pro AI Studio â€¢ Page ${i} of ${totalPages} â€¢ Generated ${new Date().toLocaleDateString()}`,
+        `Lyricist Pro AI Studio • Page ${i} of ${totalPages} • Generated ${new Date().toLocaleDateString()}`,
         pageWidth / 2,
         pageHeight - 7,
         { align: 'center' }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -64,7 +65,7 @@ const CollaborativeLyricRoomModal: React.FC<CollaborativeLyricRoomModalProps> = 
   const [isRhymeLoading, setIsRhymeLoading] = useState(false);
   const rhymeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced dispatch: onSelect + onKeyUp fire per keystroke â€” only the last
+  // Debounced dispatch: onSelect + onKeyUp fire per keystroke — only the last
   // word change within 500 ms should trigger an LLM request.
   const debouncedFetchRhymes = (word: string) => {
     if (rhymeDebounceRef.current) clearTimeout(rhymeDebounceRef.current);
@@ -127,7 +128,7 @@ Return a JSON array of objects:
 ]`;
 
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -182,7 +183,7 @@ Return a JSON array of objects:
   const [channel, setChannel] = useState<BroadcastChannel | null>(null);
   const [syncCount, setSyncCount] = useState(0);
 
-  // Refs mirroring the values the channel effect needs — keeps the onmessage
+  // Refs mirroring the values the channel effect needs  keeps the onmessage
   // closure and heartbeat fresh WITHOUT recreating the channel per keystroke.
   const lyricsRef = useRef(lyricsText);
   const songTitleRef = useRef(songTitle);
@@ -263,7 +264,7 @@ Return a JSON array of objects:
     } catch (err) {
       console.warn("BroadcastChannel not supported or sandbox restricted", err);
     }
-    // userName/userColor intentionally NOT in deps — renames propagate via the
+    // userName/userColor intentionally NOT in deps  renames propagate via the
     // 5s heartbeat; including them recreated the channel on every keystroke.
   }, [isOpen, roomId, myUserId]);
 
@@ -349,7 +350,7 @@ Return a JSON array of objects:
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
-              ðŸ‘¥
+              👥
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -370,13 +371,13 @@ Return a JSON array of objects:
               onClick={handleCopyInvite}
               className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-teal-300 border border-teal-500/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              {copiedLink ? "âœ“ Invite Copied!" : "ðŸ”— Share Room Invite"}
+              {copiedLink ? "✓ Invite Copied!" : "🔗 Share Room Invite"}
             </button>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white text-lg p-2 rounded-full hover:bg-gray-800 cursor-pointer"
             >
-              âœ•
+              ✕
             </button>
           </div>
         </div>
@@ -435,7 +436,7 @@ Return a JSON array of objects:
               />
               <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
                 <span>{lineCount} lines</span>
-                <span>â€¢</span>
+                <span>•</span>
                 <span>{wordCount} words</span>
               </div>
             </div>
@@ -455,7 +456,7 @@ Return a JSON array of objects:
               <div className="mt-2 bg-gray-900/90 border border-teal-500/30 rounded-xl p-2.5 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs">ðŸŽ¯</span>
+                    <span className="text-xs">🎯</span>
                     <span className="text-[11px] font-bold text-teal-300 uppercase tracking-wider">
                       Real-Time Rhymes for: <strong className="text-white font-mono">{selectedWordToRhyme || "..."}</strong>
                     </span>
@@ -496,7 +497,7 @@ Return a JSON array of objects:
           {/* Co-Writer Real-Time Chat & Activity Log */}
           <div className="flex flex-col space-y-2 bg-gray-950 p-4 rounded-2xl border border-gray-800">
             <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-              <span className="text-xs font-black uppercase text-teal-300">ðŸ’¬ Co-Writer Studio Chat</span>
+              <span className="text-xs font-black uppercase text-teal-300">💬 Co-Writer Studio Chat</span>
               <span className="text-[10px] text-gray-400">{chatMessages.length} messages</span>
             </div>
 
@@ -549,7 +550,7 @@ Return a JSON array of objects:
               }}
               className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold rounded-xl text-xs transition-all border border-gray-700 cursor-pointer"
             >
-              ðŸ“¥ Download Draft TXT
+              📥 Download Draft TXT
             </button>
           </div>
 
@@ -558,7 +559,7 @@ Return a JSON array of objects:
               onClick={handleSaveToWorkspace}
               className="px-4 py-2 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer"
             >
-              ðŸ’¾ Save Draft to Active Workspace
+              💾 Save Draft to Active Workspace
             </button>
             <button
               onClick={onClose}

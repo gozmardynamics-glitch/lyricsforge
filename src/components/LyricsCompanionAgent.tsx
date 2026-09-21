@@ -36,7 +36,7 @@ const LyricsCompanionAgent = ({
       sender: 'agent',
       text: ok
         ? `Applied changes for: "${text}"! Check the updated lyrics and production specs.`
-        : `Couldn't apply "${text}" â€” the refinement failed. Please try again.`,
+        : `Couldn't apply "${text}" — the refinement failed. Please try again.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
     setIsLoading(false);
@@ -49,7 +49,7 @@ const LyricsCompanionAgent = ({
           onClick={() => setIsOpen(true)}
           className="px-4 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-2xl shadow-2xl border border-teal-400/40 transition-all flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
         >
-          <span className="text-lg">ðŸ’¬</span>
+          <span className="text-lg">💬</span>
           <span className="text-xs">Lyrics Companion Agent</span>
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
         </button>
@@ -58,7 +58,7 @@ const LyricsCompanionAgent = ({
           {/* Header */}
           <div className="bg-gradient-to-r from-gray-900 via-teal-950 to-gray-900 p-3.5 border-b border-gray-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-teal-400 text-base">ðŸ¤–</span>
+              <span className="text-teal-400 text-base">🤖</span>
               <div>
                 <h5 className="text-xs font-bold text-white">Lyrics Companion Co-Pilot</h5>
                 <p className="text-[10px] text-gray-400">Real-time Song & Spec Modifier</p>
@@ -68,7 +68,7 @@ const LyricsCompanionAgent = ({
               onClick={() => setIsOpen(false)}
               className="text-gray-400 hover:text-white text-xs px-2 py-1 cursor-pointer"
             >
-              âœ•
+              ✕
             </button>
           </div>
 

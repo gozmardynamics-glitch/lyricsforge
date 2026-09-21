@@ -22,7 +22,7 @@ export const recordRecentStyle = (style: { youtubeStyleLink?: string; referenceS
     if (labelParts.length === 0) return;
     const entry = {
       id: `recent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      label: labelParts.join(' â€” '),
+      label: labelParts.join(' — '),
       referenceSongTitle: style.referenceSongTitle || '',
       artistStyleName: style.artistStyleName || '',
       youtubeStyleLink: style.youtubeStyleLink || ''
@@ -67,7 +67,7 @@ export const RecentStylesDropdown: React.FC<RecentStylesDropdownProps> = ({ onSe
   return (
     <div className="space-y-1">
       <label className="block text-[10px] font-bold text-teal-400 uppercase tracking-wider flex items-center justify-between">
-        <span>ðŸ•’ Recent Styles History</span>
+        <span>🕒 Recent Styles History</span>
         <span className="text-[9px] text-gray-400 font-normal">Pick past reference</span>
       </label>
       <select

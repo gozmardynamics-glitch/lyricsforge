@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -53,12 +54,12 @@ const ThematicHookGeneratorModal: React.FC<ThematicHookGeneratorModalProps> = ({
   ];
 
   const HOOK_FOCUS_OPTIONS = [
-    { id: "all", label: "ðŸŒŸ All 5 Creative Formats", desc: "Earworms, chorus drops, intros & emotional lines" },
-    { id: "earworm", label: "âš¡ First 3-Second Earworm", desc: "Instant viral listener grabber" },
-    { id: "chorus_drop", label: "ðŸ”¥ Anthemic Chorus Drop", desc: "High-energy central thematic powerhouse" },
-    { id: "story_intro", label: "ðŸŽ¬ Cinematic Story Starter", desc: "Visual world-building opening lines" },
-    { id: "cadence_punch", label: "ðŸ¥ Rhythmic Cadence Punchline", desc: "Deep rhyme density & flow switches" },
-    { id: "vulnerable", label: "ðŸ’” Vulnerable Midnight Confession", desc: "Raw emotional gut-punch" }
+    { id: "all", label: "🌟 All 5 Creative Formats", desc: "Earworms, chorus drops, intros & emotional lines" },
+    { id: "earworm", label: "⚡ First 3-Second Earworm", desc: "Instant viral listener grabber" },
+    { id: "chorus_drop", label: "🔥 Anthemic Chorus Drop", desc: "High-energy central thematic powerhouse" },
+    { id: "story_intro", label: "🎬 Cinematic Story Starter", desc: "Visual world-building opening lines" },
+    { id: "cadence_punch", label: " Rhythmic Cadence Punchline", desc: "Deep rhyme density & flow switches" },
+    { id: "vulnerable", label: "💔 Vulnerable Midnight Confession", desc: "Raw emotional gut-punch" }
   ];
 
   const generateThematicHooks = useCallback(async () => {
@@ -82,7 +83,7 @@ Generate 5 distinct, high-impact thematic hooks or opening lines engineered spec
 
 Requirements:
 1. Every hook MUST strictly adhere to the rhythmic cadence, vocabulary, and flow characteristics of ${genre}.
-2. Ensure lines feel fresh, rhythmically distinct, avoid generic clichÃ©s, and instantly unlock musical momentum.
+2. Ensure lines feel fresh, rhythmically distinct, avoid generic clichés, and instantly unlock musical momentum.
 3. Break down:
    - "category": e.g. "First 3-Second Earworm", "Anthemic Chorus Drop", "Cinematic Story Intro", "Rhythmic Cadence Punchline", "Vulnerable Midnight Confession"
    - "hookText": 2 to 4 lines of lyrics capturing the hook or opening line
@@ -95,7 +96,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -195,7 +196,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
         <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-amber-950/40 via-gray-900 to-gray-900">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-xl text-amber-400 font-bold shadow-lg">
-              ðŸ’¡
+              💡
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -214,7 +215,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors text-lg"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -223,7 +224,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1">
-                ðŸŽµ Music Genre
+                🎵 Music Genre
               </label>
               <select
                 value={genre}
@@ -238,7 +239,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
 
             <div>
               <label className="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1">
-                ðŸŽ­ Emotional Mood
+                🎭 Emotional Mood
               </label>
               <input
                 type="text"
@@ -251,7 +252,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
 
             <div>
               <label className="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1">
-                ðŸŽ¯ Hook Focus Format
+                🎯 Hook Focus Format
               </label>
               <select
                 value={hookFocus}
@@ -291,7 +292,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
                 </>
               ) : (
                 <>
-                  <span>âš¡ Generate Thematic Hooks</span>
+                  <span>⚡ Generate Thematic Hooks</span>
                 </>
               )}
             </button>
@@ -342,7 +343,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
                         {h.category}
                       </span>
                       <span className="text-[10px] text-gray-400 font-mono">
-                        {h.syllableCount} Syllables â€¢ {h.rhythmCadence}
+                        {h.syllableCount} Syllables • {h.rhythmCadence}
                       </span>
                     </div>
 
@@ -353,7 +354,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
                         className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                         title="Copy to clipboard"
                       >
-                        {copiedIdx === idx ? "âœ“ Copied!" : "ðŸ“‹ Copy"}
+                        {copiedIdx === idx ? "✓ Copied!" : "📋 Copy"}
                       </button>
 
                       <button
@@ -362,7 +363,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
                         className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-gray-950 text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                         title="Insert into song draft / ideas"
                       >
-                        {appliedIdx === idx ? "âœ“ Applied!" : "âš¡ Use Hook"}
+                        {appliedIdx === idx ? "✓ Applied!" : "⚡ Use Hook"}
                       </button>
                     </div>
                   </div>
@@ -376,7 +377,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <div className="bg-gray-900/60 p-2.5 rounded-lg border border-gray-800">
                       <span className="text-[10px] font-bold uppercase text-teal-400 block mb-0.5">
-                        ðŸ§  Why This Breaks Writer's Block:
+                        🧠 Why This Breaks Writer's Block:
                       </span>
                       <p className="text-gray-300 text-[11px] leading-relaxed">
                         {h.whyItWorks}
@@ -385,7 +386,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
 
                     <div className="bg-gray-900/60 p-2.5 rounded-lg border border-gray-800">
                       <span className="text-[10px] font-bold uppercase text-purple-400 block mb-0.5">
-                        ðŸŽ™ï¸ Delivery & Performance Tip:
+                        🎙 Delivery & Performance Tip:
                       </span>
                       <p className="text-gray-300 text-[11px] leading-relaxed">
                         {h.deliveryStyleTip}
@@ -404,7 +405,7 @@ Return ONLY a valid JSON array of 5 objects matching this structure.`;
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between text-xs text-gray-400">
-          <span>ðŸ’¡ Pro-tip: Use thematic hooks as your anchor before drafting surrounding verses.</span>
+          <span>💡 Pro-tip: Use thematic hooks as your anchor before drafting surrounding verses.</span>
           <button
             type="button"
             onClick={onClose}

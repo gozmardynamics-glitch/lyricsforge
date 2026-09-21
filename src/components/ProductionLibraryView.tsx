@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { exportAlbumToFile, exportSongsToFile } from "./exportUtils";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
@@ -8,9 +9,89 @@ import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMa
 import LyricEnhancerModal from "./LyricEnhancerModal";
 import LyricSheetExportModal from "./LyricSheetExportModal";
 import D3RadarChart from "./D3RadarChart";
+import { BIRTHDAY_ALBUMS } from "../data/birthdayAlbums";
 
 // --- PRODUCTION LIBRARY VIEW COMPONENT ---
 const LS_PRODUCED_LIBRARY = "produced_music_library_v1";
+const LS_BIRTHDAY_SEED = "produced_library_birthday_seed_v1";
+
+const normStr = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+/** Normalize arbitrary lyrics payload into Song.lyrics shape (string[][]). */
+const normalizeLyrics = (lyrics: unknown): string[][] => {
+  if (!lyrics) return [];
+  if (typeof lyrics === "string") {
+    return [lyrics.split("\n")];
+  }
+  if (Array.isArray(lyrics)) {
+    if (lyrics.length === 0) return [];
+    if (lyrics.every((l) => typeof l === "string")) {
+      return [lyrics.map(normStr)];
+    }
+    return lyrics
+      .filter((v): v is unknown[] => Array.isArray(v))
+      .map((version) => version.map(normStr));
+  }
+  return [];
+};
+
+const normalizeSong = (s: any): Song => ({
+  id: normStr(s?.id) || `song-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  title: normStr(s?.title) || "Untitled Track",
+  genre: normStr(s?.genre) || "Pop",
+  mood: normStr(s?.mood) || "Euphoric",
+  structure: normStr(s?.structure) || "Verse - Chorus - Verse - Chorus - Bridge - Chorus",
+  rhymeScheme: normStr(s?.rhymeScheme) || "ABAB (Alternate Rhyme)",
+  customIdeas: normStr(s?.customIdeas),
+  lyrics: normalizeLyrics(s?.lyrics),
+  isApproved: Boolean(s?.isApproved),
+  language: s?.language ? normStr(s.language) : undefined,
+  musicKey: s?.musicKey ? normStr(s.musicKey) : undefined,
+  stylePresetId: s?.stylePresetId ? normStr(s.stylePresetId) : undefined,
+  youtubeStyleLink: s?.youtubeStyleLink ? normStr(s.youtubeStyleLink) : undefined,
+  referenceSongTitle: s?.referenceSongTitle ? normStr(s.referenceSongTitle) : undefined,
+  artistStyleName: s?.artistStyleName ? normStr(s.artistStyleName) : undefined,
+  tags: Array.isArray(s?.tags) ? s.tags.map(normStr) : [],
+  titleRationale: s?.titleRationale ? normStr(s.titleRationale) : undefined,
+  activeLyricVersion: typeof s?.activeLyricVersion === "number" ? s.activeLyricVersion : 0,
+});
+
+const normalizeAlbum = (a: any): Album => {
+  const songs = (Array.isArray(a?.songs) ? a.songs : []).map(normalizeSong);
+  return {
+    id: normStr(a?.id) || `album-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: normStr(a?.name) || "Untitled Album",
+    occasion: normStr(a?.occasion) || "General Album",
+    comments: normStr(a?.comments),
+    genres: Array.isArray(a?.genres) ? a.genres.map(normStr) : [],
+    songCount: typeof a?.songCount === "number" ? a.songCount : songs.length,
+    songs,
+    language: a?.language ? normStr(a.language) : undefined,
+    titlesReadyForReview: Boolean(a?.titlesReadyForReview),
+  };
+};
+
+/** Merge birthday seed albums into library state (skip ids already present). */
+const mergeBirthdaySeed = (lib: { albums: Album[]; songs: Song[] }) => {
+  const existingAlbumIds = new Set(lib.albums.map((a) => a.id));
+  const missing = BIRTHDAY_ALBUMS.filter((a) => !existingAlbumIds.has(a.id)).map(normalizeAlbum);
+  if (missing.length === 0) return lib;
+
+  const existingSongIds = new Set(lib.songs.map((s) => s.id));
+  const seedSongs: Song[] = [];
+  for (const alb of missing) {
+    for (const s of alb.songs) {
+      if (!existingSongIds.has(s.id)) {
+        seedSongs.push(s);
+        existingSongIds.add(s.id);
+      }
+    }
+  }
+  return {
+    albums: [...missing, ...lib.albums],
+    songs: [...seedSongs, ...lib.songs],
+  };
+};
 
 interface ProductionLibraryViewProps {
   currentAlbum: Album | null;
@@ -33,13 +114,43 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
   const [selectedAlbumForSheet, setSelectedAlbumForSheet] = useState<Album | null>(null);
 
   const [libraryData, setLibraryData] = useState<{ albums: Album[]; songs: Song[] }>(() => {
+    let base: { albums: Album[]; songs: Song[] } = { albums: [], songs: [] };
     try {
       const saved = localStorage.getItem(LS_PRODUCED_LIBRARY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        base = {
+          albums: Array.isArray(parsed?.albums) ? parsed.albums.map(normalizeAlbum) : [],
+          songs: Array.isArray(parsed?.songs) ? parsed.songs.map(normalizeSong) : [],
+        };
+      }
     } catch (e) {
       console.error("Error loading library from storage", e);
     }
-    return { albums: [], songs: [] };
+    // First visit only: seed the 4 family birthday albums (10 songs each).
+    // Later visits do not resurrect albums the user intentionally deleted.
+    // The "Load Birthday Collection" button restores them on demand.
+    let shouldSeed = false;
+    try {
+      shouldSeed = localStorage.getItem(LS_BIRTHDAY_SEED) !== "1";
+    } catch {
+      shouldSeed = base.albums.length === 0;
+    }
+    if (!shouldSeed && base.albums.length === 0) {
+      // Empty library after user wipe — still offer the collection via button only
+      shouldSeed = false;
+    }
+    if (!shouldSeed) {
+      return base;
+    }
+    const seeded = mergeBirthdaySeed(base);
+    try {
+      localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(seeded));
+      localStorage.setItem(LS_BIRTHDAY_SEED, "1");
+    } catch (e) {
+      console.error("Error saving seeded library", e);
+    }
+    return seeded;
   });
 
   // Sync current album into persistent library if present
@@ -115,39 +226,82 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.albums || parsed.songs) {
-          // Normalize imported records â€” arbitrary JSON must not crash render filters
-          const normStr = (v: any) => (typeof v === "string" ? v : "");
-          const importedAlbums = (Array.isArray(parsed.albums) ? parsed.albums : []).map((a: any) => ({
-            ...a,
-            name: normStr(a.name),
-            songs: (Array.isArray(a.songs) ? a.songs : []).map((s: any) => ({
-              ...s,
-              title: normStr(s.title),
-              genre: normStr(s.genre),
-              mood: normStr(s.mood),
-              tags: Array.isArray(s.tags) ? s.tags : []
-            }))
-          }));
-          const importedSongs = (Array.isArray(parsed.songs) ? parsed.songs : []).map((s: any) => ({
-            ...s,
-            title: normStr(s.title),
-            genre: normStr(s.genre),
-            mood: normStr(s.mood),
-            tags: Array.isArray(s.tags) ? s.tags : []
-          }));
-          const mergedAlbums = [...importedAlbums, ...libraryData.albums];
-          const mergedSongs = [...importedSongs, ...libraryData.songs];
-          const newLib = { albums: mergedAlbums, songs: mergedSongs };
-          setLibraryData(newLib);
-          localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(newLib));
-          alert("Production Library successfully imported!");
+
+        // Accept: { albums, songs } | single Album | { albums: [album] } | Album[]
+        let rawAlbums: any[] = [];
+        let rawSongs: any[] = [];
+        if (Array.isArray(parsed)) {
+          rawAlbums = parsed.filter((p) => p && (p.songs || p.occasion || p.name) && !p.lyrics);
+          rawSongs = parsed.filter((p) => p && p.lyrics !== undefined && !p.songs);
+        } else if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed.albums)) rawAlbums = parsed.albums;
+          else if (parsed.songs || parsed.occasion || (parsed.name && parsed.id && !parsed.lyrics)) {
+            rawAlbums = [parsed];
+          }
+          if (Array.isArray(parsed.songs) && !rawAlbums.some((a) => a === parsed)) {
+            // Library format: top-level singles list (may also exist inside albums)
+            const albumSongIds = new Set(
+              rawAlbums.flatMap((a: any) => (Array.isArray(a?.songs) ? a.songs.map((s: any) => s?.id) : []))
+            );
+            rawSongs = parsed.songs.filter((s: any) => !albumSongIds.has(s?.id));
+          }
         }
+
+        if (rawAlbums.length === 0 && rawSongs.length === 0) {
+          alert("No albums or songs found in this JSON file.");
+          return;
+        }
+
+        const importedAlbums = rawAlbums.map(normalizeAlbum);
+        const importedSongs = rawSongs.map(normalizeSong);
+
+        const albumIdSet = new Set(libraryData.albums.map((a) => a.id));
+        const songIdSet = new Set(libraryData.songs.map((s) => s.id));
+        const newAlbums = importedAlbums.filter((a) => {
+          if (albumIdSet.has(a.id)) return false;
+          albumIdSet.add(a.id);
+          return true;
+        });
+        const newSongs = importedSongs.filter((s) => {
+          if (songIdSet.has(s.id)) return false;
+          songIdSet.add(s.id);
+          return true;
+        });
+
+        const newLib = {
+          albums: [...newAlbums, ...libraryData.albums],
+          songs: [...newSongs, ...libraryData.songs],
+        };
+        setLibraryData(newLib);
+        localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(newLib));
+        alert(
+          `Imported ${newAlbums.length} album(s) and ${newSongs.length} song(s).` +
+            (importedAlbums.length !== newAlbums.length || importedSongs.length !== newSongs.length
+              ? " Duplicate IDs were skipped."
+              : "")
+        );
       } catch (err) {
         alert("Invalid JSON file format.");
+      } finally {
+        // Allow re-importing the same file
+        e.target.value = "";
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleLoadBirthdayCollection = () => {
+    setLibraryData(prev => {
+      const merged = mergeBirthdaySeed(prev);
+      try {
+        localStorage.setItem(LS_PRODUCED_LIBRARY, JSON.stringify(merged));
+        localStorage.setItem(LS_BIRTHDAY_SEED, "1");
+      } catch (err) {
+        console.error("Error saving birthday collection", err);
+      }
+      return merged;
+    });
+    alert("Family Birthday Collection loaded: Grandpa, Grandma, Mum, and Dad albums (10 songs each).");
   };
 
   // AI-Driven Tagger for analyzing lyrics & assigning keywords
@@ -171,7 +325,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
       const prompt = `Analyze these music track snippets and assign 3-5 concise, evocative keywords/tags (e.g., 'Love', 'Melancholy', 'Upbeat', 'Nostalgic', 'Club Banger', 'Heartbreak') to each track based on lyrics and mood.\n\nTracks:\n${JSON.stringify(songSnippets, null, 2)}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -247,9 +401,9 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
     // Optional chaining + fallbacks: imported JSON may miss fields
     const matchesSearch =
       (a.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.occasion?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.genres?.some(g => g.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      a.songs?.some(s => s.tags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+      (a.occasion || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.genres?.some(g => (g || "").toLowerCase().includes(searchQuery.toLowerCase())) ||
+      a.songs?.some(s => s.tags?.some(t => (t || "").toLowerCase().includes(searchQuery.toLowerCase())));
 
     const matchesMood = selectedMoodFilter
       ? a.songs?.some(s => (s.mood || "").toLowerCase() === selectedMoodFilter.toLowerCase())
@@ -263,7 +417,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
       (s.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.genre || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.mood || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.tags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      s.tags?.some(t => (t || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesMood = selectedMoodFilter
       ? (s.mood || "").toLowerCase() === selectedMoodFilter.toLowerCase()
@@ -281,30 +435,38 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
             Persistent Archives & Analytics
           </span>
           <h2 className="text-2xl md:text-3xl font-black text-white mt-1.5 flex items-center gap-2">
-            ðŸ“š Produced Songs & Albums Library
+            📚 Produced Songs & Albums Library
           </h2>
           <p className="text-gray-400 text-xs mt-1">
-            {libraryData.albums.length} Albums â€¢ {libraryData.songs.length} Single Produced Songs
+            {libraryData.albums.length} Albums • {libraryData.songs.length} Single Produced Songs
+            {" "}• Birthday Collection: 4 albums / 40 songs included
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleLoadBirthdayCollection}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+            title="Load/restore the 4 family birthday albums (Grandpa, Grandma, Mum, Dad)"
+          >
+            <span>🎂 Load Birthday Collection</span>
+          </button>
           <button
             onClick={handleAutoTagLibraryWithAI}
             disabled={isTaggingAI}
             className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
             title="Auto-analyze lyrics and assign keywords/tags using AI"
           >
-            {isTaggingAI ? <span>âœ¨ Tagging Tracks with AI...</span> : <span>ðŸ·ï¸ AI Auto-Tagger</span>}
+            {isTaggingAI ? <span>✨ Tagging Tracks with AI...</span> : <span>🏷️ AI Auto-Tagger</span>}
           </button>
           <button
             onClick={handleExportFullLibraryJSON}
             className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
           >
-            <span>ðŸ“¥ Export Library Backup (JSON)</span>
+            <span>📥 Export Library Backup (JSON)</span>
           </button>
           <label className="px-3.5 py-2 bg-teal-950/80 hover:bg-teal-900 border border-teal-500/40 text-teal-300 hover:text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer">
-            <span>ðŸ“¤ Import / Restore JSON</span>
+            <span>📤 Import / Restore JSON</span>
             <input type="file" accept=".json" onChange={handleImportLibraryJSON} className="hidden" />
           </label>
         </div>
@@ -314,7 +476,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         {/* Left: D3 Radar Chart */}
         <div className="lg:col-span-5">
-          <React.Suspense fallback={<div className="p-4 text-xs text-gray-500">Loading radar…</div>}>
+          <React.Suspense fallback={<div className="p-4 text-xs text-gray-500">Loading radar</div>}>
             <D3RadarChart
               data={radarData}
               selectedMood={selectedMoodFilter}
@@ -327,12 +489,12 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
         <div className="lg:col-span-7 bg-gray-800/90 p-5 rounded-2xl border border-gray-700/80 space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-              ðŸ”Ž Global Search & Tag Filter
+              🔎 Global Search & Tag Filter
             </h4>
             {selectedMoodFilter && (
               <span className="text-xs bg-teal-950 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
                 Active Filter: {selectedMoodFilter}
-                <button onClick={() => setSelectedMoodFilter(null)} className="ml-1 text-teal-400 hover:text-white">âœ•</button>
+                <button onClick={() => setSelectedMoodFilter(null)} className="ml-1 text-teal-400 hover:text-white">✕</button>
               </span>
             )}
           </div>
@@ -345,7 +507,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
               placeholder="Search library by title, genre, mood, or tags (e.g., 'Melancholy', 'Love')..."
               className="bg-gray-900 text-xs text-white p-3 rounded-xl border border-gray-700 focus:outline-none focus:ring-1 focus:ring-teal-400 w-full pl-9"
             />
-            <span className="absolute left-3 top-3 text-xs text-gray-500">ðŸ”</span>
+            <span className="absolute left-3 top-3 text-xs text-gray-500"></span>
           </div>
 
           <div className="flex items-center gap-2 bg-gray-900/80 p-1 rounded-xl border border-gray-700/80 max-w-fit">
@@ -355,7 +517,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                 activeTab === 'albums' ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
               }`}
             >
-              ðŸ’¿ Albums ({filteredAlbums.length})
+              💿 Albums ({filteredAlbums.length})
             </button>
             <button
               onClick={() => setActiveTab('songs')}
@@ -363,7 +525,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                 activeTab === 'songs' ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
               }`}
             >
-              ðŸŽµ Single Songs ({filteredSongs.length})
+              🎵 Single Songs ({filteredSongs.length})
             </button>
           </div>
         </div>
@@ -385,12 +547,12 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                       className="text-gray-500 hover:text-red-400 text-xs p-1"
                       title="Delete album"
                     >
-                      ðŸ—‘ï¸
+                      🗑
                     </button>
                   </div>
 
                   <h3 className="text-xl font-black text-white">{album.name}</h3>
-                  <p className="text-xs text-gray-400">{album.songs?.length || 0} Tracks â€¢ Genres: {album.genres?.join(', ') || 'Pop'}</p>
+                  <p className="text-xs text-gray-400">{album.songs?.length || 0} Tracks • Genres: {album.genres?.join(', ') || 'Pop'}</p>
 
                   <div className="bg-gray-900/80 p-3 rounded-xl border border-gray-700/80 max-h-32 overflow-y-auto space-y-1">
                     {album.songs?.map((s, i) => (
@@ -407,7 +569,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                     onClick={() => onLoadAlbumIntoWorkspace(album)}
                     className="w-full py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    ðŸ“‚ Load Album into Workspace
+                    📂 Load Album into Workspace
                   </button>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -416,19 +578,19 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                       className="py-1.5 bg-indigo-900/60 hover:bg-indigo-800 border border-indigo-500/40 text-indigo-200 text-xs font-bold rounded-lg transition-all"
                       title="View Lead Sheet export for album"
                     >
-                      ðŸŽ¼ Sheet
+                      🎼 Sheet
                     </button>
                     <button
                       onClick={() => exportAlbumToFile(album, 'txt')}
                       className="py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-bold rounded-lg transition-all"
                     >
-                      ðŸ“¥ TXT
+                      📥 TXT
                     </button>
                     <button
                       onClick={() => exportAlbumToFile(album, 'json')}
                       className="py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-bold rounded-lg transition-all"
                     >
-                      ðŸ“„ JSON
+                      📄 JSON
                     </button>
                   </div>
                 </div>
@@ -451,14 +613,14 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">
-                      {song.genre} â€¢ {song.mood}
+                      {song.genre} • {song.mood}
                     </span>
                     <button
                       onClick={() => handleDeleteSong(song.id)}
                       className="text-gray-500 hover:text-red-400 text-xs"
                       title="Delete song"
                     >
-                      ðŸ—‘ï¸
+                      🗑
                     </button>
                   </div>
 
@@ -469,7 +631,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                     <div className="flex flex-wrap gap-1 py-1">
                       {song.tags.map((tag, tIdx) => (
                         <span key={tIdx} className="text-[9px] bg-purple-950/80 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-semibold">
-                          ðŸ·ï¸ {tag}
+                           {tag}
                         </span>
                       ))}
                     </div>
@@ -490,26 +652,26 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                       }}
                       className="py-2 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-md"
                     >
-                      <span>âœ¨ Enhance</span>
+                      <span>✨ Enhance</span>
                     </button>
                     <button
                       onClick={() => setSelectedSongForSheet(song)}
                       className="py-2 bg-indigo-900/70 hover:bg-indigo-800 border border-indigo-500/40 text-indigo-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-md"
                     >
-                      <span>ðŸŽ¼ Lead Sheet</span>
+                      <span>🎼 Lead Sheet</span>
                     </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <CopyButton
-                      textToCopy={`ðŸŽµ ${song.title}\n\n${song.lyrics?.[0]?.join('\n') || ''}`}
+                      textToCopy={`🎵 ${song.title}\n\n${song.lyrics?.[0]?.join('\n') || ''}`}
                       label="Copy Lyrics"
                     />
                     <button
                       onClick={() => exportSongsToFile([song], song.title.replace(/\s+/g, '_'), 'txt')}
                       className="py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl text-xs"
                     >
-                      ðŸ“¥ Export TXT
+                      📥 Export TXT
                     </button>
                   </div>
 
@@ -518,7 +680,7 @@ const ProductionLibraryView: React.FC<ProductionLibraryViewProps> = ({
                       onClick={() => onAddSongToActiveAlbum(song)}
                       className="w-full py-2 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-xl text-xs cursor-pointer"
                     >
-                      âž• Add to Active Album Tracklist
+                      ➕ Add to Active Album Tracklist
                     </button>
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -232,7 +233,7 @@ const GENRE_DNA_DATABASE: Record<string, GenreDNA> = {
     recommendedBpm: "90 - 100 BPM",
     keyMeters: "4/4 Dembow pattern (Boom-cha-boom-chick)",
     signatureVocabulary: [
-      "Fuego", "Calor", "Bailar", "Suave", "Ritmo", "Noche", "Sabor", "CorazÃ³n", "PasiÃ³n",
+      "Fuego", "Calor", "Bailar", "Suave", "Ritmo", "Noche", "Sabor", "Corazón", "Pasión",
       "Dembow", "Playa", "Breeze", "Candela", "Sensual", "Destino", "Mirada", "Seduction"
     ],
     rhymePreferences: "AABB / ABAB with rich vowel resonance, Spanish/English Spanglish fusion, and rhythmic flow.",
@@ -345,7 +346,7 @@ Output JSON with this exact schema:
 }`;
 
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -395,7 +396,7 @@ Output JSON with this exact schema:
         <div className="flex items-center justify-between border-b border-gray-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-gradient-to-br from-teal-500/20 to-indigo-500/20 border border-teal-500/40 rounded-2xl text-2xl">
-              ðŸ”
+              
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
@@ -408,7 +409,7 @@ Output JSON with this exact schema:
             onClick={onClose}
             className="text-gray-400 hover:text-white text-lg p-2 rounded-full hover:bg-gray-800 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -442,7 +443,7 @@ Output JSON with this exact schema:
                 <span>Extracting Sonic DNA...</span>
               </>
             ) : (
-              <span>âš¡ Deep AI Genre Dissection</span>
+              <span>⚡ Deep AI Genre Dissection</span>
             )}
           </button>
         </div>
@@ -452,24 +453,24 @@ Output JSON with this exact schema:
           {/* Quick Metrics Header */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-gray-800/90 p-3.5 rounded-xl border border-gray-700 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-teal-400">â±ï¸ Recommended BPM Tempo</span>
+              <span className="text-[10px] uppercase font-bold text-teal-400"> Recommended BPM Tempo</span>
               <p className="text-white font-mono font-bold text-sm">{activeDNA.recommendedBpm}</p>
             </div>
 
             <div className="bg-gray-800/90 p-3.5 rounded-xl border border-gray-700 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-teal-400">ðŸ¥ Scansion & Meter Groove</span>
+              <span className="text-[10px] uppercase font-bold text-teal-400"> Scansion & Meter Groove</span>
               <p className="text-gray-200 font-semibold">{activeDNA.keyMeters}</p>
             </div>
 
             <div className="bg-gray-800/90 p-3.5 rounded-xl border border-gray-700 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-teal-400">ðŸŽ¯ Rhyme Scheme Density</span>
+              <span className="text-[10px] uppercase font-bold text-teal-400">🎯 Rhyme Scheme Density</span>
               <p className="text-gray-200 font-semibold">{activeDNA.rhymePreferences}</p>
             </div>
           </div>
 
           {/* Sonic Atmosphere */}
           <div className="bg-gray-800/70 p-4 rounded-2xl border border-gray-700/80 space-y-1.5">
-            <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">ðŸŒŒ Signature Sonic Atmosphere & Vibe</span>
+            <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">🌌 Signature Sonic Atmosphere & Vibe</span>
             <p className="text-gray-200 text-sm leading-relaxed">{activeDNA.signatureVibe}</p>
           </div>
 
@@ -477,7 +478,7 @@ Output JSON with this exact schema:
           <div className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">
-                ðŸ”¤ Curated Genre Vocabulary & Keyword Palette (Click to Insert / Copy)
+                🔤 Curated Genre Vocabulary & Keyword Palette (Click to Insert / Copy)
               </span>
               <span className="text-[10px] text-gray-400">Click any keyword to add to your workspace</span>
             </div>
@@ -494,7 +495,7 @@ Output JSON with this exact schema:
                   title="Click to copy and insert into custom ideas"
                 >
                   <span>{word}</span>
-                  {copiedWord === word ? <span className="text-[10px]">âœ“</span> : <span className="text-[10px] opacity-60">+</span>}
+                  {copiedWord === word ? <span className="text-[10px]">✓</span> : <span className="text-[10px] opacity-60">+</span>}
                 </button>
               ))}
             </div>
@@ -504,12 +505,12 @@ Output JSON with this exact schema:
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700 space-y-2">
               <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">
-                ðŸ“– High-Impact Lyrical Tropes & Themes
+                📖 High-Impact Lyrical Tropes & Themes
               </span>
               <ul className="space-y-1.5 text-gray-300">
                 {activeDNA.lyricalTropes.map((trope, tIdx) => (
                   <li key={tIdx} className="flex items-start gap-2">
-                    <span className="text-teal-400 font-bold">â€º</span>
+                    <span className="text-teal-400 font-bold">›</span>
                     <span>{trope}</span>
                   </li>
                 ))}
@@ -518,7 +519,7 @@ Output JSON with this exact schema:
 
             <div className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700 space-y-2">
               <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">
-                ðŸŽ¸ Signature Instrumentation & Sonics
+                🎸 Signature Instrumentation & Sonics
               </span>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {activeDNA.instrumentationHighlights.map((inst, iIdx) => (
@@ -526,7 +527,7 @@ Output JSON with this exact schema:
                     key={iIdx}
                     className="px-2.5 py-1 bg-gray-900 border border-gray-700 text-gray-300 font-medium rounded-lg text-xs"
                   >
-                    ðŸŽµ {inst}
+                    🎵 {inst}
                   </span>
                 ))}
               </div>
@@ -537,7 +538,7 @@ Output JSON with this exact schema:
           <div className="bg-gray-800/90 p-4 rounded-2xl border border-teal-500/30 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-black tracking-wider text-teal-300">
-                ðŸš€ Master Stylistic Prompts (Ready to Apply)
+                🚀 Master Stylistic Prompts (Ready to Apply)
               </span>
               <span className="text-[10px] text-gray-400">Click Apply to load directly into prompt generator</span>
             </div>
@@ -558,7 +559,7 @@ Output JSON with this exact schema:
                       }}
                       className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-bold rounded-lg transition-all"
                     >
-                      ðŸ“‹ Copy
+                      📋 Copy
                     </button>
                     {onApplyPrompt && (
                       <button
@@ -568,7 +569,7 @@ Output JSON with this exact schema:
                         }}
                         className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-md active:scale-95"
                       >
-                        âœ“ Use Prompt
+                        ✓ Use Prompt
                       </button>
                     )}
                   </div>

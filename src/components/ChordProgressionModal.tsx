@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -98,7 +99,7 @@ const ChordProgressionModal: React.FC<ChordProgressionModalProps> = ({
   const displayProgressions = aiChords || defaultProgressions;
 
   const handleCopyProgression = async (prog: ChordProgression, idx: number) => {
-    const text = `ðŸŽ¼ ${prog.name} (${prog.numerals})\nChords: ${prog.chords.join(" - ")}\nKey: ${prog.key} | Tempo: ${prog.tempo}\nVibe: ${prog.vibe}\n${prog.description}`;
+    const text = `🎼 ${prog.name} (${prog.numerals})\nChords: ${prog.chords.join(" - ")}\nKey: ${prog.key} | Tempo: ${prog.tempo}\nVibe: ${prog.vibe}\n${prog.description}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopiedIdx(idx);
@@ -137,7 +138,7 @@ Return a JSON array with 4 objects:
 ]`;
 
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -178,7 +179,7 @@ Return a JSON array with 4 objects:
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-800 pb-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl p-2 bg-indigo-950/80 border border-indigo-500/30 rounded-xl">ðŸŽ¹</span>
+            <span className="text-2xl p-2 bg-indigo-950/80 border border-indigo-500/30 rounded-xl">🎹</span>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-500/30">
@@ -195,7 +196,7 @@ Return a JSON array with 4 objects:
             onClick={onClose}
             className="text-gray-400 hover:text-white text-lg p-2 rounded-full hover:bg-gray-800 cursor-pointer"
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -219,7 +220,7 @@ Return a JSON array with 4 objects:
                 <span>Harmonizing...</span>
               </>
             ) : (
-              <span>âœ¨ AI Smart Harmony</span>
+              <span>✨ AI Smart Harmony</span>
             )}
           </button>
           {aiChords && (
@@ -249,7 +250,7 @@ Return a JSON array with 4 objects:
                       Key: {prog.key}
                     </span>
                     <span className="text-[11px] text-gray-400 font-mono">
-                      â± {prog.tempo}
+                       {prog.tempo}
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-white mt-1">{prog.name}</h4>
@@ -259,7 +260,7 @@ Return a JSON array with 4 objects:
                   onClick={() => handleCopyProgression(prog, idx)}
                   className="px-3 py-1.5 bg-gray-800 hover:bg-indigo-600 text-gray-200 hover:text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 self-start cursor-pointer border border-gray-700"
                 >
-                  {copiedIdx === idx ? "âœ“ Copied Chords!" : "ðŸ“‹ Copy Progression"}
+                  {copiedIdx === idx ? "✓ Copied Chords!" : "📋 Copy Progression"}
                 </button>
               </div>
 
@@ -290,7 +291,7 @@ Return a JSON array with 4 objects:
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between border-t border-gray-800 pt-3 text-xs text-gray-400">
-          <span>ðŸ’¡ Apply these chord progressions to acoustic guitars, pianos, or digital synths when recording your vocal lead sheet.</span>
+          <span>💡 Apply these chord progressions to acoustic guitars, pianos, or digital synths when recording your vocal lead sheet.</span>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl cursor-pointer"

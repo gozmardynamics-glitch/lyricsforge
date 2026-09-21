@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
-import { safeExtractJSON } from "../agents/llmRegistry";
+import { safeExtractJSON, getActiveModelId } from "../agents/llmRegistry";
+import { registerAbortJob, completeAbortJob } from "../agents/abortSupervisor";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
 import { OCCASIONS_CATEGORIZED, OCCASIONS, GENRES, RHYME_SCHEMES, EMOTIONAL_MOODS, DEFAULT_STYLE_PRESETS } from "../constants";
 import { Tooltip, TooltipInfo, CopyButton, Spinner, CheckmarkIcon, parseLyricsMarkdown, countSyllablesInWord, countSyllablesInLine } from "./shared";
@@ -130,7 +131,7 @@ Instructions:
    - "viralityScore": number
 `;
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: mergePrompt,
         config: {
           responseMimeType: "application/json",
@@ -152,7 +153,7 @@ Instructions:
         const newMergedDraftTrack: DraftTrack = {
           id: `merged-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           title: parsed.mergedTitle || `Hybrid Master (${track1.title} + ${track2.title})`,
-          styleNote: `ðŸ”€ Hybrid Blend: ${track1.styleNote} x ${track2.styleNote}`,
+          styleNote: `🔀 Hybrid Blend: ${track1.styleNote} x ${track2.styleNote}`,
           lyrics: parsed.mergedLyrics,
           viralityScore: parsed.viralityScore ?? 98
         };
@@ -219,7 +220,7 @@ Instructions:
     try {
       const prompt = `Generate 3 distinct, highly creative, viral song storyline concepts based on current pop culture, trending music hooks, and genuine human emotions. Return a JSON array of 3 strings. Each string should be 1-2 descriptive sentences outlining a unique song storyline.`;
       const res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -297,6 +298,7 @@ Instructions:
     const abortController = new AbortController();
     agentLoopAbortRef.current = abortController;
     const signal = abortController.signal;
+    const supervisedJob = registerAbortJob("virality", "Autonomous Virality Orchestrator", abortController);
 
     setIsExecuting(true);
     setErrorMsg("");
@@ -339,7 +341,7 @@ Generate a JSON object with:
 `;
 
       const stage1Res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: stage1Prompt,
         signal,
         config: {
@@ -361,10 +363,10 @@ Generate a JSON object with:
 
       // --- STAGE 2: GLOBAL CHART RESEARCH & STYLE RETRIEVAL ---
       setCurrentAgentStep(2);
-      appendLog("Stage 2: Chart & Virality Retrieval Engine", `Synthesizing chart/trend heuristics for ${targetGenre} from model knowledge — not live web data...`);
+      appendLog("Stage 2: Chart & Virality Retrieval Engine", `Synthesizing chart/trend heuristics for ${targetGenre} from model knowledge  not live web data...`);
 
       const stage2Prompt = `
-You are the Chart Trend Analysis Agent (knowledge synthesis — you have NO live web access; do not claim real-time chart scraping).
+You are the Chart Trend Analysis Agent (knowledge synthesis  you have NO live web access; do not claim real-time chart scraping).
 Analyze Billboard Global 200 and Spotify Viral 50 style trends from your training knowledge for genre: ${targetGenre}.
 
 Identify key viral formulas:
@@ -380,7 +382,7 @@ Return JSON format with:
 `;
 
       const stage2Res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: stage2Prompt,
         config: {
           responseMimeType: "application/json",
@@ -435,7 +437,7 @@ Requirements:
 `;
 
       const stage3Res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: stage3Prompt,
         config: {
           responseMimeType: "application/json",
@@ -497,7 +499,7 @@ Genre: ${targetGenre}
 
 Evaluate across 4 distinct critic perspectives:
 1. Virality Critic: Is the chorus hook sticky? Quotable on social media?
-2. Literary Critic: Does it avoid clichÃ©s? Is sensory imagery deep?
+2. Literary Critic: Does it avoid clichés? Is sensory imagery deep?
 3. Flow & Scansion Critic: Is the rhythm natural to sing?
 4. Occasion Fit Critic: Does it honor the occasion and emotional tone?
 
@@ -515,7 +517,7 @@ Return JSON:
 `;
 
         const stage4Res = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
+          model: getActiveModelId(),
           contents: stage4Prompt,
           config: {
             responseMimeType: "application/json",
@@ -549,7 +551,7 @@ Return JSON:
         stage4Data = JSON.parse(stage4Res.text || "{}");
         appendLog("Stage 4 Complete", `Composite Virality Index: ${stage4Data.overallViralityScore}% (Virality: ${stage4Data.viralityCriticScore}%, Literary: ${stage4Data.literaryCriticScore}%, Flow: ${stage4Data.flowCriticScore}%, Occasion: ${stage4Data.occasionFitScore}%)`);
       } else {
-        appendLog("Stage 4: Skipped", `4-Critic evaluation loop disabled â€” building production package from the draft as-is.`);
+        appendLog("Stage 4: Skipped", `4-Critic evaluation loop disabled — building production package from the draft as-is.`);
       }
 
       // --- STAGE 5: REFINEMENT & MUSIC PRODUCTION PACKAGE SYNTHESIS ---
@@ -591,7 +593,7 @@ Return JSON:
 `;
 
       const stage5Res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: stage5Prompt,
         config: {
           responseMimeType: "application/json",
@@ -662,7 +664,7 @@ Return JSON:
 `;
 
       const stage6Res = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: stage6Prompt,
         config: {
           responseMimeType: "application/json",
@@ -755,6 +757,7 @@ Return JSON:
         setErrorMsg(err?.message || "Failed to complete autonomous agent loop. Please try again.");
       }
     } finally {
+      completeAbortJob(supervisedJob.id);
       if (agentLoopAbortRef.current === abortController) agentLoopAbortRef.current = null;
       setIsExecuting(false);
       setCurrentAgentStep(0);
@@ -807,7 +810,7 @@ Return JSON:
 `;
 
       const refRes = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: getActiveModelId(),
         contents: refinementPrompt,
         config: {
           responseMimeType: "application/json",
@@ -877,7 +880,7 @@ Return JSON:
   };
 
   const textToCopy = result
-    ? `ðŸŽµ ${result.songTitle}\nðŸ”¥ Viral Hook: "${result.viralHook}"\nðŸ“Š Virality Index: ${result.criticEvaluation.overallViralityScore}%\nðŸŽ§ Music Specs: ${result.musicProductionPackage.suggestedBpm} BPM | ${result.musicProductionPackage.musicalKey} | ${result.musicProductionPackage.genreFusion}\n\n${result.lyrics}`
+    ? `🎵 ${result.songTitle}\n🔥 Viral Hook: "${result.viralHook}"\n📊 Virality Index: ${result.criticEvaluation.overallViralityScore}%\n🎧 Music Specs: ${result.musicProductionPackage.suggestedBpm} BPM | ${result.musicProductionPackage.musicalKey} | ${result.musicProductionPackage.genreFusion}\n\n${result.lyrics}`
     : "";
 
   return (
@@ -885,7 +888,7 @@ Return JSON:
       {/* Hero Banner Header */}
       <div className="bg-gradient-to-r from-gray-900 via-teal-950 to-gray-900 p-6 md:p-8 rounded-3xl border border-teal-500/40 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none text-9xl">
-          ðŸš€
+          🚀
         </div>
 
         <div className="relative z-10 space-y-3 max-w-3xl">
@@ -907,10 +910,10 @@ Return JSON:
           </p>
 
           <div className="pt-2 flex flex-wrap gap-4 text-xs font-semibold text-teal-300">
-            <span className="flex items-center gap-1.5"><span className="text-teal-400">âœ“</span> Occasion Parser</span>
-            <span className="flex items-center gap-1.5"><span className="text-teal-400">âœ“</span> Global Chart Scraper</span>
-            <span className="flex items-center gap-1.5"><span className="text-teal-400">âœ“</span> 4-Critic Loop</span>
-            <span className="flex items-center gap-1.5"><span className="text-teal-400">âœ“</span> Production Specs (BPM/Key)</span>
+            <span className="flex items-center gap-1.5"><span className="text-teal-400">✓</span> Occasion Parser</span>
+            <span className="flex items-center gap-1.5"><span className="text-teal-400">✓</span> Global Chart Scraper</span>
+            <span className="flex items-center gap-1.5"><span className="text-teal-400">✓</span> 4-Critic Loop</span>
+            <span className="flex items-center gap-1.5"><span className="text-teal-400">✓</span> Production Specs (BPM/Key)</span>
           </div>
         </div>
       </div>
@@ -920,7 +923,7 @@ Return JSON:
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-700 pb-4">
           <div>
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <span>ðŸŽ¯</span> Configure Agent Objectives
+              <span>🎯</span> Configure Agent Objectives
             </h3>
             <p className="text-xs text-gray-400">Set the occasion, mood, cultural references, and story concept.</p>
           </div>
@@ -930,7 +933,7 @@ Return JSON:
             onClick={onOpenAgentStudio}
             className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-teal-300 border border-gray-600 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer self-start md:self-auto"
           >
-            <span>ðŸ“š Manage Style Presets ({stylePresets.length})</span>
+            <span>📚 Manage Style Presets ({stylePresets.length})</span>
           </button>
         </div>
 
@@ -1047,7 +1050,7 @@ Return JSON:
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                  <span>ðŸŽ¥ YouTube Style Link</span>
+                  <span>🎥 YouTube Style Link</span>
                   <TooltipInfo text="Paste a YouTube URL to reference cadence, beat bounce, or arrangement style." />
                 </label>
                 <input
@@ -1061,7 +1064,7 @@ Return JSON:
 
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                  <span>ðŸŽµ Song Title Reference</span>
+                  <span>🎵 Song Title Reference</span>
                   <TooltipInfo text="Specific hit song to emulate rhyme scheme and structure from." />
                 </label>
                 <input
@@ -1075,7 +1078,7 @@ Return JSON:
 
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                  <span>ðŸŽ¤ Artist Style Name</span>
+                  <span>🎤 Artist Style Name</span>
                   <TooltipInfo text="Specific artist whose vocal delivery, flow, or lyrical tropes to channel." />
                 </label>
                 <input
@@ -1110,7 +1113,7 @@ Return JSON:
                   </>
                 ) : (
                   <>
-                    <span>âœ¨ Auto-Suggest 3 Trending Themes</span>
+                    <span>✨ Auto-Suggest 3 Trending Themes</span>
                   </>
                 )}
               </button>
@@ -1120,7 +1123,7 @@ Return JSON:
             {suggestedThemes.length > 0 && (
               <div className="bg-gray-900/90 p-3 rounded-xl border border-teal-500/30 space-y-2 animate-fade-in">
                 <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest flex items-center gap-1">
-                  ðŸ’¡ Select a Trending AI Suggestion to populate your concept:
+                  💡 Select a Trending AI Suggestion to populate your concept:
                 </span>
                 <div className="grid grid-cols-1 gap-1.5">
                   {suggestedThemes.map((st, i) => (
@@ -1180,7 +1183,7 @@ Return JSON:
                 </>
               ) : (
                 <>
-                  <span>ðŸš€ Launch Autonomous Agentic Orchestrator</span>
+                  <span>🚀 Launch Autonomous Agentic Orchestrator</span>
                 </>
               )}
             </button>
@@ -1254,7 +1257,7 @@ Return JSON:
               </div>
 
               <h3 className="text-3xl font-black text-white flex items-center gap-2">
-                <span className="text-teal-400">ðŸŽµ</span>
+                <span className="text-teal-400">🎵</span>
                 <input
                   type="text"
                   value={result.songTitle}
@@ -1265,7 +1268,7 @@ Return JSON:
               </h3>
 
               <p className="text-xs text-gray-300 flex items-center gap-2">
-                <span>ðŸ”¥ <strong className="text-white">Viral Hook:</strong> "{result.viralHook}"</span>
+                <span>🔥 <strong className="text-white">Viral Hook:</strong> "{result.viralHook}"</span>
               </p>
             </div>
 
@@ -1276,7 +1279,7 @@ Return JSON:
                 {result.criticEvaluation.overallViralityScore}%
               </span>
               <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded mt-1">
-                {result.criticEvaluation.overallViralityScore >= 90 ? "ðŸ”¥ Billboard Top 10 Potential" : "âœ¨ High Viral Appeal"}
+                {result.criticEvaluation.overallViralityScore >= 90 ? "🔥 Billboard Top 10 Potential" : "✨ High Viral Appeal"}
               </span>
             </div>
           </div>
@@ -1289,7 +1292,7 @@ Return JSON:
                 activeResultTab === 'lyrics' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              ðŸ“ Song Lyrics
+               Song Lyrics
             </button>
 
             <button
@@ -1298,7 +1301,7 @@ Return JSON:
                 activeResultTab === 'production' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              ðŸŽ§ Music Production Specs
+              🎧 Music Production Specs
             </button>
 
             <button
@@ -1307,7 +1310,7 @@ Return JSON:
                 activeResultTab === 'critics' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              ðŸ•µï¸ 4-Critic Evaluation Matrix
+              🕵 4-Critic Evaluation Matrix
             </button>
 
             <button
@@ -1316,7 +1319,7 @@ Return JSON:
                 activeResultTab === 'checklist' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              âœ… Virality Audit Checklist
+              ✅ Virality Audit Checklist
             </button>
 
             <button
@@ -1325,7 +1328,7 @@ Return JSON:
                 activeResultTab === 'logs' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              ðŸ§  Agent Decision Logs ({result.executionLog.length})
+              🧠 Agent Decision Logs ({result.executionLog.length})
             </button>
 
             <button
@@ -1338,7 +1341,7 @@ Return JSON:
                 activeResultTab === 'activityLog' ? "bg-teal-600 text-white shadow-md" : "bg-gray-900 text-gray-400 hover:text-white"
               }`}
             >
-              ðŸ“œ Activity Log & Sessions
+              📜 Activity Log & Sessions
             </button>
           </div>
 
@@ -1375,7 +1378,7 @@ Return JSON:
                           </>
                         ) : (
                           <>
-                            <span>ðŸ”€ Merge 2 Selected ({selectedDraftIdsForMerge.length}/2)</span>
+                            <span>🔀 Merge 2 Selected ({selectedDraftIdsForMerge.length}/2)</span>
                           </>
                         )}
                       </button>
@@ -1385,7 +1388,7 @@ Return JSON:
                         className="px-3 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
                         title="Compare 2 draft tracks side-by-side with metrics"
                       >
-                        <span>ðŸ”¬ Compare Drafts</span>
+                        <span>🔬 Compare Drafts</span>
                       </button>
 
                       {onAddSongsToAlbum && (
@@ -1394,7 +1397,7 @@ Return JSON:
                           className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
                           title="Add all 3 generated draft tracks as new songs to your album tracklist"
                         >
-                          <span>âž• Add All 3 to Album</span>
+                          <span>➕ Add All 3 to Album</span>
                         </button>
                       )}
 
@@ -1403,7 +1406,7 @@ Return JSON:
                         className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
                         title="Export all generated drafts as TXT"
                       >
-                        <span>ðŸ“¥ Export TXT</span>
+                        <span>📥 Export TXT</span>
                       </button>
 
                       <button
@@ -1411,7 +1414,7 @@ Return JSON:
                         className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
                         title="Export all generated drafts as JSON"
                       >
-                        <span>ðŸ“„ Export JSON</span>
+                        <span>📄 Export JSON</span>
                       </button>
 
                       <button
@@ -1419,7 +1422,7 @@ Return JSON:
                         className="px-3 py-2 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/30 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer"
                         title="Clear all generated drafts with 1 click"
                       >
-                        <span>ðŸ—‘ï¸ Clear All</span>
+                        <span>🗑 Clear All</span>
                       </button>
                     </div>
                   </div>
@@ -1464,7 +1467,7 @@ Return JSON:
                               </label>
 
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-500/30">
-                                ðŸ”¥ Virality {draftTrack.viralityScore ?? 95}%
+                                🔥 Virality {draftTrack.viralityScore ?? 95}%
                               </span>
                             </div>
 
@@ -1507,7 +1510,7 @@ Return JSON:
                                   : "bg-gray-700 hover:bg-teal-600 text-gray-200 hover:text-white"
                               }`}
                             >
-                              {isCurrentMaster ? "Active Master Track âœ“" : "Set as Master Track"}
+                              {isCurrentMaster ? "Active Master Track ✓" : "Set as Master Track"}
                             </button>
 
                             {onAddSongsToAlbum && (
@@ -1516,7 +1519,7 @@ Return JSON:
                                 title="Add this specific track to your album tracklist"
                                 className="py-2 px-2.5 bg-gray-700 hover:bg-emerald-600 text-gray-200 hover:text-white rounded-lg text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer"
                               >
-                                âž• Album
+                                ➕ Album
                               </button>
                             )}
                           </div>
@@ -1567,7 +1570,7 @@ Return JSON:
                 <div className="flex flex-wrap gap-2">
                   {result.musicProductionPackage.primaryInstrumentation.map((inst, i) => (
                     <span key={i} className="px-3 py-1 bg-teal-950/80 text-teal-300 border border-teal-500/40 rounded-lg text-xs font-semibold">
-                      ðŸŽ¸ {inst}
+                      🎸 {inst}
                     </span>
                   ))}
                 </div>
@@ -1734,7 +1737,7 @@ Return JSON:
               <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                 <div>
                   <h4 className="font-bold text-white text-base flex items-center gap-2">
-                    <span className="text-teal-400">ðŸ“œ</span> Dedicated Orchestrator Activity Log
+                    <span className="text-teal-400">📜</span> Dedicated Orchestrator Activity Log
                   </h4>
                   <p className="text-xs text-gray-400">Historical trace of past TaskOrchestrator runs, virality scores, and milestone evolution.</p>
                 </div>
@@ -1745,7 +1748,7 @@ Return JSON:
                   }}
                   className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-teal-300 text-xs font-bold rounded-lg border border-gray-700 transition-all cursor-pointer"
                 >
-                  ðŸ”„ Refresh Logs
+                  🔄 Refresh Logs
                 </button>
               </div>
 
@@ -1780,14 +1783,14 @@ Return JSON:
                               }}
                               className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-bold rounded transition-all cursor-pointer"
                             >
-                              Inspect Song âž”
+                              Inspect Song ➔
                             </button>
                           )}
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-white text-sm">ðŸŽµ {logItem.title}</span>
+                        <span className="font-bold text-white text-sm">🎵 {logItem.title}</span>
                         <span className="text-gray-400 text-[11px]">Genre: {logItem.genre}</span>
                       </div>
 
@@ -1819,7 +1822,7 @@ Return JSON:
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span className="text-teal-400">ðŸ’¬</span> Agent Co-Pilot Refinement Chat
+                  <span className="text-teal-400">💬</span> Agent Co-Pilot Refinement Chat
                 </h4>
                 <p className="text-xs text-gray-400">
                   Chat with the Orchestrator to tweak lyrics, rhythm, tempo, or instrumentation in real time.
@@ -1846,7 +1849,7 @@ Return JSON:
                 disabled={isRefining}
                 className="px-2.5 py-1 bg-gray-900 hover:bg-teal-950 text-teal-300 border border-teal-500/30 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50"
               >
-                âš¡ Punchier TikTok Chorus
+                ⚡ Punchier TikTok Chorus
               </button>
               <button
                 type="button"
@@ -1854,7 +1857,7 @@ Return JSON:
                 disabled={isRefining}
                 className="px-2.5 py-1 bg-gray-900 hover:bg-teal-950 text-teal-300 border border-teal-500/30 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50"
               >
-                ðŸŽ¸ 128 BPM Synthwave Vibe
+                🎸 128 BPM Synthwave Vibe
               </button>
               <button
                 type="button"
@@ -1862,7 +1865,7 @@ Return JSON:
                 disabled={isRefining}
                 className="px-2.5 py-1 bg-gray-900 hover:bg-teal-950 text-teal-300 border border-teal-500/30 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50"
               >
-                ðŸŽ¤ Dramatic Spoken Intro
+                🎤 Dramatic Spoken Intro
               </button>
               <button
                 type="button"
@@ -1870,7 +1873,7 @@ Return JSON:
                 disabled={isRefining}
                 className="px-2.5 py-1 bg-gray-900 hover:bg-teal-950 text-teal-300 border border-teal-500/30 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50"
               >
-                ðŸ’– Deeper Bridge Imagery
+                💖 Deeper Bridge Imagery
               </button>
             </div>
 
@@ -1887,7 +1890,7 @@ Return JSON:
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px] font-bold opacity-75">
-                      <span>{item.sender === 'user' ? 'ðŸ‘¤ You' : 'ðŸ¤– Virality Agent Co-Pilot'}</span>
+                      <span>{item.sender === 'user' ? '👤 You' : '🤖 Virality Agent Co-Pilot'}</span>
                       <span>{item.timestamp}</span>
                     </div>
                     <p className="leading-relaxed whitespace-pre-wrap">{item.message}</p>
@@ -1924,7 +1927,7 @@ Return JSON:
                   </>
                 ) : (
                   <>
-                    <span>ðŸš€ Refine Song</span>
+                    <span>🚀 Refine Song</span>
                   </>
                 )}
               </button>

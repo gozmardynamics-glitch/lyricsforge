@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { AgentProfile, AgentToolId, LLMModelDefinition, LLMProvider, ModelConnectionStatus, PipelineExecutionResult, WritersRoomMessage } from "../agents/agentTypes";
 import { AVAILABLE_AGENT_TOOLS, AVAILABLE_SKILLS } from "../agents/defaultAgents";
 import { DEFAULT_LLM_MODELS, getActiveModelId, getProviderApiKeys, getStoredLLMModels, saveLLMModels, saveProviderApiKeys, setActiveModelId, testModelConnection } from "../agents/llmRegistry";
+import { registerAbortJob, completeAbortJob } from "../agents/abortSupervisor";
 import { getStoredAgents, PRECONFIGURED_PIPELINES, runOrchestratorPipeline, saveStoredAgents, sendWritersRoomMessage } from "../agents/orchestratorEngine";
 
 interface AgentOrchestratorStudioModalProps {
@@ -152,6 +153,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
 
     const abortController = new AbortController();
     pipelineAbortRef.current = abortController;
+    const supervised = registerAbortJob("pipeline", `Pipeline: ${pipeline.name}`, abortController);
 
     const initialResult: PipelineExecutionResult = {
       pipelineId: pipeline.id,
@@ -195,6 +197,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
         error: err?.message || String(err)
       });
     } finally {
+      completeAbortJob(supervised.id);
       pipelineAbortRef.current = null;
       setIsPipelineRunning(false);
     }
@@ -267,6 +270,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
 
     const abortController = new AbortController();
     writersAbortRef.current = abortController;
+    const supervised = registerAbortJob("writers-room", "Writer's Room turn", abortController);
 
     try {
       const activeLyrics = activeSongContext?.lyrics?.[0]?.join("\n") || "";
@@ -307,6 +311,7 @@ export const AgentOrchestratorStudioModal: React.FC<AgentOrchestratorStudioModal
         ]);
       }
     } finally {
+      completeAbortJob(supervised.id);
       if (writersAbortRef.current === abortController) writersAbortRef.current = null;
       setIsAgentReplying(false);
     }

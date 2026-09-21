@@ -1,0 +1,487 @@
+{
+  "generatedAt": 1789980937772,
+  "pipeline": "generateThreeLyricVersions",
+  "tracks": 40,
+  "report": [
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Another Candle Light",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Grandpa's Porch Light",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Stories in Your Hands",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "The Chair That Knows You",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Wisdom Like Wine",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Hands That Built the House",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Sunday With Grandpa",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Silver and Smoke",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Keep the Gate Unlatched",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandpa's Birthday — Another Candle Light",
+      "track": "Raise a Glass to Grandpa",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Grandma's Kitchen Hymn",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Sugar in the Sunday",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Letters Tied With Ribbon",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Her Garden Still Grows",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "The Softest Strong",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Buttons and Blessings",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "A Hymn in Every Room",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Grandma's Radio",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Love That Never Hurries",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Grandma's Birthday — Candles for the Queen of Us",
+      "track": "Candles for the Queen of Us",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Mum, You're the Song",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Phone Call Home",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "The Way You Say My Name",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Midnight Mum",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Her Hands, My Harbor",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "What You Made of Me",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Kitchen Light Love",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Still Your Child",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Mum's Birthday Parade",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Mum's Birthday — You're the Song",
+      "track": "Thank You, Mum",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Dad, Hold the Mic",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "His Quiet Strength",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Fix-It Heart",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Dad Jokes & Dance Moves",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Road Trips With Dad",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "The Man Behind the Wheel",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Beard & Bear Hugs",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Lessons in the Garage",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Strong Enough to Soften",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    },
+    {
+      "album": "Dad's Birthday — Hold the Mic",
+      "track": "Happy Birthday, Dad",
+      "versions": 3,
+      "lineCounts": [
+        55,
+        62,
+        55
+      ],
+      "usedFallback": true,
+      "fallbackReason": "No valid Google Gemini API key configured"
+    }
+  ]
+}

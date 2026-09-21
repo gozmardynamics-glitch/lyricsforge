@@ -76,7 +76,7 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
         <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-300 text-lg shadow-sm">
-              ðŸ•’
+              🕒
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
@@ -93,14 +93,14 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
                 className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95"
                 title="Freeze and save current lyric state"
               >
-                ðŸ“¸ Snapshot
+                📸 Snapshot
               </button>
             )}
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800 cursor-pointer"
             >
-              âœ•
+              ✕
             </button>
           </div>
         </div>
@@ -115,13 +115,13 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
               placeholder="Search versions by lyric lines, tags, or song title..."
               className="w-full bg-gray-900 text-white text-xs p-3 rounded-xl border border-gray-700 pl-8 focus:outline-none focus:ring-1 focus:ring-teal-400"
             />
-            <span className="absolute left-2.5 top-3 text-gray-500 text-xs">ðŸ”</span>
+            <span className="absolute left-2.5 top-3 text-gray-500 text-xs"></span>
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
                 className="absolute right-2.5 top-3 text-gray-400 hover:text-white text-xs"
               >
-                âœ•
+                ✕
               </button>
             )}
           </div>
@@ -173,17 +173,17 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
                     </div>
 
                     <div className="text-[10px] text-gray-400 font-mono whitespace-nowrap">
-                      {dateStr} â€¢ {dateDay}
+                      {dateStr} • {dateDay}
                     </div>
                   </div>
 
                   {/* Metrics Badge */}
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
                     <span className="bg-gray-950 px-2 py-0.5 rounded border border-gray-800">
-                      ðŸ“ {item.wordCount || item.lyricsText.split(/\s+/).filter(Boolean).length} words
+                       {item.wordCount || item.lyricsText.split(/\s+/).filter(Boolean).length} words
                     </span>
                     <span className="bg-gray-950 px-2 py-0.5 rounded border border-gray-800">
-                      ðŸŽ¼ {item.lineCount || item.lyricsText.split('\n').filter(Boolean).length} lines
+                      🎼 {item.lineCount || item.lyricsText.split('\n').filter(Boolean).length} lines
                     </span>
                   </div>
 
@@ -225,21 +225,21 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
                         className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
                         title="Copy to Clipboard"
                       >
-                        {copiedId === item.id ? "Copied!" : "ðŸ“‹ Copy"}
+                        {copiedId === item.id ? "Copied!" : "📋 Copy"}
                       </button>
                       <button
                         onClick={() => handleExportSinglePdf(item)}
                         className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-teal-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
                         title="Download as PDF Sheet"
                       >
-                        ðŸ“„ PDF
+                        📄 PDF
                       </button>
                       <button
                         onClick={() => setDiffModeVersionId(isDiffMode ? null : item.id)}
                         className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-indigo-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
                         title="Compare Diff with Current"
                       >
-                        {isDiffMode ? "Hide Diff" : "ðŸ”€ Diff"}
+                        {isDiffMode ? "Hide Diff" : "🔀 Diff"}
                       </button>
                     </div>
 
@@ -249,7 +249,7 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
                         className="p-1.5 text-gray-500 hover:text-red-400 text-xs rounded-lg hover:bg-gray-800 cursor-pointer"
                         title="Delete snapshot"
                       >
-                        ðŸ—‘ï¸
+                        🗑
                       </button>
                       <button
                         onClick={() => {
@@ -260,7 +260,7 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
                         }}
                         className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1"
                       >
-                        <span>âª 1-Click Revert</span>
+                        <span> 1-Click Revert</span>
                       </button>
                     </div>
                   </div>
@@ -269,10 +269,10 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
             })
           ) : (
             <div className="text-center py-16 text-gray-500 space-y-3 border border-dashed border-gray-800 rounded-3xl p-6">
-              <span className="text-4xl">ðŸ•’</span>
+              <span className="text-4xl">🕒</span>
               <h5 className="font-bold text-gray-300 text-sm">No History Snapshots Yet</h5>
               <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                Snapshots are automatically recorded when you generate, edit, or harmonize lyrics. You can also click <strong>ðŸ“¸ Snapshot</strong> anytime!
+                Snapshots are automatically recorded when you generate, edit, or harmonize lyrics. You can also click <strong>📸 Snapshot</strong> anytime!
               </p>
             </div>
           )}
@@ -280,7 +280,7 @@ export const LyricsVersionHistorySidebar: React.FC<LyricsVersionHistorySidebarPr
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-800 bg-gray-900/80 flex items-center justify-between text-xs text-gray-400">
-          <span>ðŸ’¡ 1-Click revert instantly restores past drafts into your active studio editor.</span>
+          <span>💡 1-Click revert instantly restores past drafts into your active studio editor.</span>
         </div>
       </div>
     </div>

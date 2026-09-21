@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { getActiveModelId } from "../agents/llmRegistry";
 import { Type } from "@google/genai";
 import { ai } from "../aiShim";
 import { Song, Album, LyricDraftVersion, LanguageOption, LANGUAGES, StylePreset, DraftTrack, RecentTheme, ViralityChecklist, CriticEvaluation, MusicProductionPackage, AgenticLyricResult, LS_RECENT_THEMES, LS_THEME_STATE, LS_ALBUM_STATE, LS_STYLE_PRESETS, LS_APP_STATE, LS_AGENT_STATE } from "../types";
@@ -56,7 +57,7 @@ export const SCALE_DEFINITIONS: Record<ScaleFormulaType, ScaleDefinition> = {
     degreeNames: ['1 (Root)', '2 (Step)', '3 (Major 3rd)', '4 (Tension)', '5 (Fifth)', '6 (Sixth)', '7 (Leading Tone)'],
     vibe: 'Triumphant, emotional, cinematic, bright and resolute',
     bestFor: 'Stadium anthems, Disney / Broadway ballads, K-Pop chorus surges, Indie Folk',
-    avoidNotes: 'The 4th degree creates tension over major chordsâ€”use it as a quick passing note'
+    avoidNotes: 'The 4th degree creates tension over major chords—use it as a quick passing note'
   },
   minor: {
     id: 'minor',
@@ -74,7 +75,7 @@ export const SCALE_DEFINITIONS: Record<ScaleFormulaType, ScaleDefinition> = {
     degreeNames: ['1 (Root)', '2 (Step)', 'b3 (Minor 3rd)', '4 (Fourth)', '5 (Fifth)', '6 (Natural Major 6th)', 'b7 (Flat 7th)'],
     vibe: 'Smooth, sophisticated, jazzy, soulful, never overly sad or gloomy',
     bestFor: 'Neo-Soul vocal runs, Funk grooves, Indie Rock, modern R&B, UK Garage',
-    avoidNotes: 'Highlight the natural 6th degreeâ€”it gives Dorian its iconic, luxurious signature sound'
+    avoidNotes: 'Highlight the natural 6th degree—it gives Dorian its iconic, luxurious signature sound'
   },
   mixolydian: {
     id: 'mixolydian',
@@ -101,7 +102,7 @@ export const SCALE_DEFINITIONS: Record<ScaleFormulaType, ScaleDefinition> = {
     degreeNames: ['1 (Root)', '2 (Step)', 'b3 (Minor 3rd)', '4 (Fourth)', '5 (Fifth)', 'b6 (Flat 6th)', '7 (Natural Leading Tone)'],
     vibe: 'Theatrical, neoclassical, dramatic tension with an augmented 2nd jump',
     bestFor: 'Gothic Pop, Tango & Latin drama, Progressive Metal, Baroque Pop',
-    avoidNotes: 'The 1.5-step jump between b6 and natural 7 is wideâ€”practice hitting it accurately'
+    avoidNotes: 'The 1.5-step jump between b6 and natural 7 is wide—practice hitting it accurately'
   },
   blues: {
     id: 'blues',
@@ -154,7 +155,7 @@ export const GENRE_MELODY_PROFILES: Record<string, GenreMelodyGuideData> = {
     genre: "Pop",
     primaryScale: "major_pentatonic",
     secondaryScale: "major",
-    pitchCenterGuidance: "Keep verses in lower speaking range (C4â€“E4), leaping up to 5th or Octave (G4â€“C5) for the chorus explosion.",
+    pitchCenterGuidance: "Keep verses in lower speaking range (C4–E4), leaping up to 5th or Octave (G4–C5) for the chorus explosion.",
     leapVsStepGuidance: "Use stepwise motion for fast conversational verses, then introduce a single dramatic leap of a 4th or 5th at the start of the chorus.",
     vowelPlacementTip: "Place open vowels ('Ah', 'Oh', 'Eye') on highest notes and downbeats for effortless belting and vocal projection.",
     genreTrapsToAvoid: "Don't over-complicate melodic runs. 3-note repetition with rhythmic syncopation creates instant listener retention.",
@@ -313,7 +314,7 @@ export const GENRE_MELODY_PROFILES: Record<string, GenreMelodyGuideData> = {
     genre: "Rock",
     primaryScale: "mixolydian",
     secondaryScale: "blues",
-    pitchCenterGuidance: "High chest power belt (E4â€“A4) pushing the upper limits of the vocal register for emotional urgency.",
+    pitchCenterGuidance: "High chest power belt (E4–A4) pushing the upper limits of the vocal register for emotional urgency.",
     leapVsStepGuidance: "Punchy leaps between the root, flat-7, and 5th with aggressive blues note bends.",
     vowelPlacementTip: "Wide open vowels ('Yeah', 'All', 'No') anchored by gritty distortion and vocal fry.",
     genreTrapsToAvoid: "Don't sing with polite, pristine vibrato. Raw power and intentional pitch friction drive rock melodies.",
@@ -391,7 +392,7 @@ export const GENRE_MELODY_PROFILES: Record<string, GenreMelodyGuideData> = {
     genre: "Synthwave",
     primaryScale: "minor",
     secondaryScale: "phrygian",
-    pitchCenterGuidance: "Lush 80s gated reverb range (C4â€“G4) punctuated by arpeggiated octave climbs and robotic vocoder harmonies.",
+    pitchCenterGuidance: "Lush 80s gated reverb range (C4–G4) punctuated by arpeggiated octave climbs and robotic vocoder harmonies.",
     leapVsStepGuidance: "Octave leaps combined with descending stepwise sighs that mirror analog synth filters opening and closing.",
     vowelPlacementTip: "Sustained pure vowels ('Oh', 'Ah', 'Eye') that allow stereo chorus and analog delay to shimmer.",
     genreTrapsToAvoid: "Avoid rapid modern triplet chatter; 80s synth melodies prioritize expansive, cinematic long tones.",
@@ -480,7 +481,7 @@ export const GENRE_MELODY_PROFILES: Record<string, GenreMelodyGuideData> = {
     genre: "Indie Folk",
     primaryScale: "mixolydian",
     secondaryScale: "dorian",
-    pitchCenterGuidance: "Intimate acoustic storytelling range (A3â€“E4) with harmonized 3rds and choral group singalongs.",
+    pitchCenterGuidance: "Intimate acoustic storytelling range (A3–E4) with harmonized 3rds and choral group singalongs.",
     leapVsStepGuidance: "Gentle 4th-to-3rd suspensions and nostalgic descending sighs.",
     vowelPlacementTip: "Natural speech-level vowels with authentic breath texture and acoustic resonance.",
     genreTrapsToAvoid: "Avoid synthetic autotuned rigidity; raw vocal character and emotional nuances make folk songs timeless.",
@@ -774,7 +775,7 @@ Return ONLY a JSON object with this exact schema:
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: getActiveModelId(),
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -849,8 +850,8 @@ Return ONLY a JSON object with this exact schema:
   const handleApplyToSong = () => {
     if (!selectedMotif) return;
     const rootData = KEY_ROOTS.find(k => k.note.startsWith(rootKey)) || KEY_ROOTS[0];
-    const notesList = selectedMotif.semitoneSteps.map(s => getNoteNameFromSemitone(rootData.semitones, s, 4)).join(' âž” ');
-    const summary = `[Key: ${rootKey} | Scale: ${currentScaleDef.name}]\nMotif: ${selectedMotif.name} (${selectedMotif.role})\nNotes: ${notesList}\nDegrees: ${selectedMotif.degreeLabels.join(' âž” ')}\nContour: ${selectedMotif.contourShape}\nExample Lyric: "${selectedMotif.exampleLyrics}"\nVocal Tip: ${selectedMotif.vocalTechniqueTip}`;
+    const notesList = selectedMotif.semitoneSteps.map(s => getNoteNameFromSemitone(rootData.semitones, s, 4)).join(' ➔ ');
+    const summary = `[Key: ${rootKey} | Scale: ${currentScaleDef.name}]\nMotif: ${selectedMotif.name} (${selectedMotif.role})\nNotes: ${notesList}\nDegrees: ${selectedMotif.degreeLabels.join(' ➔ ')}\nContour: ${selectedMotif.contourShape}\nExample Lyric: "${selectedMotif.exampleLyrics}"\nVocal Tip: ${selectedMotif.vocalTechniqueTip}`;
     
     if (onApplyMelodyNotes) {
       onApplyMelodyNotes(summary);
@@ -879,7 +880,7 @@ Return ONLY a JSON object with this exact schema:
         <div className="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-teal-950/60 via-gray-950 to-indigo-950/60">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-teal-500/20 border border-teal-500/50 flex items-center justify-center text-2xl text-teal-300 font-black shadow-lg">
-              ðŸŽµ
+              🎵
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -902,7 +903,7 @@ Return ONLY a JSON object with this exact schema:
               className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-all text-lg cursor-pointer"
               title="Close"
             >
-              âœ•
+              ✕
             </button>
           </div>
         </div>
@@ -968,10 +969,10 @@ Return ONLY a JSON object with this exact schema:
                 onChange={(e) => setSynthSound(e.target.value as any)}
                 className="w-full bg-gray-950 border border-gray-700 rounded-xl p-2 text-xs text-indigo-300 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="triangle">ðŸŽ¹ Warm Piano</option>
-                <option value="sine">ðŸŒŠ Vocal Flute</option>
-                <option value="sawtooth">âš¡ 80s Synth Lead</option>
-                <option value="square">ðŸ‘¾ Pluck Arp</option>
+                <option value="triangle">🎹 Warm Piano</option>
+                <option value="sine">🌊 Vocal Flute</option>
+                <option value="sawtooth">⚡ 80s Synth Lead</option>
+                <option value="square">👾 Pluck Arp</option>
               </select>
             </div>
 
@@ -1000,7 +1001,7 @@ Return ONLY a JSON object with this exact schema:
                 activeTab === 'motifs' ? "bg-teal-600 text-white shadow-md" : "text-gray-400 hover:text-white"
               }`}
             >
-              <span>ðŸŽ¼ Genre Motifs Library</span>
+              <span>🎼 Genre Motifs Library</span>
             </button>
 
             <button
@@ -1009,7 +1010,7 @@ Return ONLY a JSON object with this exact schema:
                 activeTab === 'contour' ? "bg-teal-600 text-white shadow-md" : "text-gray-400 hover:text-white"
               }`}
             >
-              <span>ðŸ“ˆ Visual Pitch Contour</span>
+              <span>📈 Visual Pitch Contour</span>
             </button>
 
             <button
@@ -1018,7 +1019,7 @@ Return ONLY a JSON object with this exact schema:
                 activeTab === 'visualizer' ? "bg-teal-600 text-white shadow-md" : "text-gray-400 hover:text-white"
               }`}
             >
-              <span>ðŸŽ¹ Piano Keyboard & Ladder</span>
+              <span>🎹 Piano Keyboard & Ladder</span>
             </button>
 
             <button
@@ -1027,7 +1028,7 @@ Return ONLY a JSON object with this exact schema:
                 activeTab === 'ai_architect' ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md" : "text-purple-300 hover:text-white"
               }`}
             >
-              <span>âœ¨ AI Melody Architect</span>
+              <span>✨ AI Melody Architect</span>
             </button>
           </div>
 
@@ -1066,21 +1067,21 @@ Return ONLY a JSON object with this exact schema:
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-300 leading-relaxed">
                   <div className="bg-gray-950/60 p-3 rounded-xl border border-gray-800/80 space-y-1">
                     <span className="text-[10px] font-bold uppercase text-amber-400 block">
-                      ðŸŽ¯ Pitch Center & Range Rule:
+                      🎯 Pitch Center & Range Rule:
                     </span>
                     <p>{genreProfile.pitchCenterGuidance}</p>
                   </div>
 
                   <div className="bg-gray-950/60 p-3 rounded-xl border border-gray-800/80 space-y-1">
                     <span className="text-[10px] font-bold uppercase text-indigo-400 block">
-                      ðŸŒŠ Leaps vs Steps Motion:
+                      🌊 Leaps vs Steps Motion:
                     </span>
                     <p>{genreProfile.leapVsStepGuidance}</p>
                   </div>
                 </div>
 
                 <div className="bg-amber-950/30 p-3 rounded-xl border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2">
-                  <span className="text-base">âš ï¸</span>
+                  <span className="text-base">⚠</span>
                   <div>
                     <strong className="font-bold">Trap to Avoid in {selectedGenre}:</strong> {genreProfile.genreTrapsToAvoid}
                   </div>
@@ -1094,7 +1095,7 @@ Return ONLY a JSON object with this exact schema:
                     <span>Iconic {selectedGenre} Melodic Motifs</span>
                     <span className="text-xs text-gray-500 font-normal">({genreProfile.motifs.length} Presets)</span>
                   </h5>
-                  <span className="text-[11px] text-gray-400">Click â–¶ Play to hear in {rootKey}</span>
+                  <span className="text-[11px] text-gray-400">Click ▶ Play to hear in {rootKey}</span>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
@@ -1133,7 +1134,7 @@ Return ONLY a JSON object with this exact schema:
                               }`}
                               title={isCurrentPlaying ? "Stop Motif" : "Play Melodic Motif"}
                             >
-                              {isCurrentPlaying ? "â¹" : "â–¶"}
+                              {isCurrentPlaying ? "" : "▶"}
                             </button>
 
                             <div>
@@ -1192,7 +1193,7 @@ Return ONLY a JSON object with this exact schema:
                               <span className="italic text-teal-300 font-serif">"{motif.exampleLyrics}"</span>
                             </div>
                             <div className="text-[11px] text-gray-300 flex items-start gap-1.5 pt-1 border-t border-gray-900">
-                              <span className="text-purple-400 font-bold">ðŸŽ™ï¸ Vocal Delivery Tip:</span>
+                              <span className="text-purple-400 font-bold">🎙 Vocal Delivery Tip:</span>
                               <span>{motif.vocalTechniqueTip}</span>
                             </div>
                           </div>
@@ -1229,7 +1230,7 @@ Return ONLY a JSON object with this exact schema:
                       onClick={() => selectedMotif && playMotifSequence(selectedMotif)}
                       className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>{isPlayingMotif ? "â¹ Stop" : "â–¶ Play & Animate Contour"}</span>
+                      <span>{isPlayingMotif ? " Stop" : "▶ Play & Animate Contour"}</span>
                     </button>
                   </div>
                 </div>
@@ -1384,11 +1385,11 @@ Return ONLY a JSON object with this exact schema:
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                     {[
-                      { name: "ðŸ”ï¸ The Arch", desc: "Climbs on hook, peaks on power vowel, resolves to root" },
-                      { name: "ðŸŒŠ The Waterfall", desc: "Hits high note first, cascading downward into comfort" },
-                      { name: "ðŸ“ˆ The Staircase", desc: "Step-by-step upward ladder creating pre-chorus tension" },
-                      { name: "ã€°ï¸ The Wave", desc: "Syncopated bounce oscillating between tension & rest" },
-                      { name: "ðŸŽ¯ Call-Response", desc: "Open question phrase answered by resolved phrase" }
+                      { name: " The Arch", desc: "Climbs on hook, peaks on power vowel, resolves to root" },
+                      { name: "🌊 The Waterfall", desc: "Hits high note first, cascading downward into comfort" },
+                      { name: "📈 The Staircase", desc: "Step-by-step upward ladder creating pre-chorus tension" },
+                      { name: "〰 The Wave", desc: "Syncopated bounce oscillating between tension & rest" },
+                      { name: "🎯 Call-Response", desc: "Open question phrase answered by resolved phrase" }
                     ].map((shape, idx) => (
                       <div key={idx} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-center space-y-1">
                         <div className="font-bold text-teal-300 text-xs">{shape.name}</div>
@@ -1511,7 +1512,7 @@ Return ONLY a JSON object with this exact schema:
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div className="bg-gray-950 p-3 rounded-xl border border-emerald-500/40 space-y-1">
                       <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                        <span>ðŸŸ¢ 1st & 5th Degrees (Anchor)</span>
+                        <span>🟢 1st & 5th Degrees (Anchor)</span>
                       </div>
                       <p className="text-[11px] text-gray-300 leading-relaxed">
                         Total resolution, strength, and grounding. End your chorus lines on the 1st or 5th for a satisfying, resolute finish.
@@ -1520,7 +1521,7 @@ Return ONLY a JSON object with this exact schema:
 
                     <div className="bg-gray-950 p-3 rounded-xl border border-amber-500/40 space-y-1">
                       <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                        <span>ðŸŸ¡ 3rd & 6th Degrees (Emotion)</span>
+                        <span>🟡 3rd & 6th Degrees (Emotion)</span>
                       </div>
                       <p className="text-[11px] text-gray-300 leading-relaxed">
                         Defines the emotional color (major uplifting vs minor sorrow). Great for verse storytelling and sweet lyrical sentiments.
@@ -1529,7 +1530,7 @@ Return ONLY a JSON object with this exact schema:
 
                     <div className="bg-gray-950 p-3 rounded-xl border border-rose-500/40 space-y-1">
                       <div className="flex items-center gap-1.5 text-rose-400 font-bold text-xs">
-                        <span>ðŸ”´ 2nd, 4th & 7th Degrees (Tension)</span>
+                        <span>🔴 2nd, 4th & 7th Degrees (Tension)</span>
                       </div>
                       <p className="text-[11px] text-gray-300 leading-relaxed">
                         Yearning, unanswered questions, and pre-chorus suspension. Demands resolution to the root or third.
@@ -1563,7 +1564,7 @@ Return ONLY a JSON object with this exact schema:
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">
-                      âœï¸ Lyric Line to Analyze & Map
+                       Lyric Line to Analyze & Map
                     </label>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input
@@ -1589,7 +1590,7 @@ Return ONLY a JSON object with this exact schema:
                             <span>Arranging Melody...</span>
                           </>
                         ) : (
-                          <span>âœ¨ Generate Vocal Melody</span>
+                          <span>✨ Generate Vocal Melody</span>
                         )}
                       </button>
                     </div>
@@ -1611,7 +1612,7 @@ Return ONLY a JSON object with this exact schema:
                           onClick={playAiMelody}
                           className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
                         >
-                          <span>{isPlayingMotif ? "â¹ Stop" : "â–¶ Play AI Melody"}</span>
+                          <span>{isPlayingMotif ? " Stop" : "▶ Play AI Melody"}</span>
                         </button>
                       </div>
                     </div>
@@ -1648,14 +1649,14 @@ Return ONLY a JSON object with this exact schema:
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div className="bg-gray-900/70 p-3 rounded-xl border border-gray-800 space-y-1">
                         <span className="text-[10px] font-bold uppercase text-teal-400 block">
-                          ðŸ§  Why This Fits {selectedGenre}:
+                          🧠 Why This Fits {selectedGenre}:
                         </span>
                         <p className="text-gray-300 leading-relaxed">{aiMelodyResult.genreRationale}</p>
                       </div>
 
                       <div className="bg-gray-900/70 p-3 rounded-xl border border-gray-800 space-y-1">
                         <span className="text-[10px] font-bold uppercase text-indigo-400 block">
-                          ðŸŽ™ï¸ Vocal Technique & Phrasing:
+                          🎙 Vocal Technique & Phrasing:
                         </span>
                         <p className="text-gray-300 leading-relaxed">{aiMelodyResult.vocalGuide}</p>
                       </div>
@@ -1671,7 +1672,7 @@ Return ONLY a JSON object with this exact schema:
         {/* Modal Footer */}
         <div className="p-4 border-t border-gray-800 bg-gray-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400">
           <div className="flex items-center gap-2">
-            <span>ðŸ’¡ Pro-tip: Major Pentatonic guarantees clash-free hooks; Dorian adds luxurious soul.</span>
+            <span>💡 Pro-tip: Major Pentatonic guarantees clash-free hooks; Dorian adds luxurious soul.</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1681,7 +1682,7 @@ Return ONLY a JSON object with this exact schema:
                 onClick={handleApplyToSong}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
-                <span>{copiedStatus || "ðŸ“¥ Apply Melody Guide to Song"}</span>
+                <span>{copiedStatus || "📥 Apply Melody Guide to Song"}</span>
               </button>
             )}
 
